@@ -1,0 +1,708 @@
+import { useEffect, useState } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Plus, Search, Edit, History, Loader2, Printer } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+import { z } from 'zod';
+
+type TipoConsumo = 'tinta' | 'toner';
+type TipoImpresion = 'monocromatico' | 'color';
+type EstadoImpresora = 'activa' | 'inactiva' | 'en_reparacion' | 'baja';
+
+interface Impresora {
+  id: string;
+  serie: string;
+  nombre: string;
+  modelo: string;
+  tipo_consumo: TipoConsumo;
+  tipo_impresion: TipoImpresion;
+  sector_id: string | null;
+  filial_id: string | null;
+  contador_negro_inicial: number;
+  contador_color_inicial: number;
+  contador_negro_actual: number;
+  contador_color_actual: number;
+  fecha_registro: string;
+  descripcion: string | null;
+  estado: EstadoImpresora;
+  editado_por: string | null;
+}
+
+interface Sector {
+  id: string;
+  nombre: string;
+}
+
+interface Filial {
+  id: string;
+  nombre: string;
+}
+
+const impresoraSchema = z.object({
+  serie: z.string().min(1, 'La serie es requerida').max(50),
+  nombre: z.string().min(1, 'El nombre es requerido').max(100),
+  modelo: z.string().min(1, 'El modelo es requerido').max(100),
+  tipo_consumo: z.enum(['tinta', 'toner']),
+  tipo_impresion: z.enum(['monocromatico', 'color']),
+  sector_id: z.string().optional().nullable(),
+  filial_id: z.string().optional().nullable(),
+  contador_negro_inicial: z.number().min(0),
+  contador_color_inicial: z.number().min(0),
+  descripcion: z.string().max(500).optional().nullable(),
+  estado: z.enum(['activa', 'inactiva', 'en_reparacion', 'baja']),
+});
+
+export default function Impresoras() {
+  const { user, role } = useAuth();
+  const { toast } = useToast();
+  const [impresoras, setImpresoras] = useState<Impresora[]>([]);
+  const [sectores, setSectores] = useState<Sector[]>([]);
+  const [filiales, setFiliales] = useState<Filial[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPrinter, setEditingPrinter] = useState<Impresora | null>(null);
+  const [historialOpen, setHistorialOpen] = useState(false);
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    serie: '',
+    nombre: '',
+    modelo: '',
+    tipo_consumo: 'tinta' as TipoConsumo,
+    tipo_impresion: 'color' as TipoImpresion,
+    sector_id: '',
+    filial_id: '',
+    contador_negro_inicial: 0,
+    contador_color_inicial: 0,
+    descripcion: '',
+    estado: 'activa' as EstadoImpresora,
+  });
+
+  // New location dialog
+  const [newSectorOpen, setNewSectorOpen] = useState(false);
+  const [newFilialOpen, setNewFilialOpen] = useState(false);
+  const [newSectorName, setNewSectorName] = useState('');
+  const [newFilialName, setNewFilialName] = useState('');
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    
+    const [impResp, secResp, filResp] = await Promise.all([
+      supabase.from('impresoras').select('*').order('created_at', { ascending: false }),
+      supabase.from('sectores').select('*').eq('activo', true),
+      supabase.from('filiales').select('*').eq('activo', true),
+    ]);
+
+    if (impResp.data) setImpresoras(impResp.data as Impresora[]);
+    if (secResp.data) setSectores(secResp.data);
+    if (filResp.data) setFiliales(filResp.data);
+    
+    setLoading(false);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      serie: '',
+      nombre: '',
+      modelo: '',
+      tipo_consumo: 'tinta',
+      tipo_impresion: 'color',
+      sector_id: '',
+      filial_id: '',
+      contador_negro_inicial: 0,
+      contador_color_inicial: 0,
+      descripcion: '',
+      estado: 'activa',
+    });
+    setEditingPrinter(null);
+  };
+
+  const handleEdit = (printer: Impresora) => {
+    setEditingPrinter(printer);
+    setFormData({
+      serie: printer.serie,
+      nombre: printer.nombre,
+      modelo: printer.modelo,
+      tipo_consumo: printer.tipo_consumo,
+      tipo_impresion: printer.tipo_impresion,
+      sector_id: printer.sector_id || '',
+      filial_id: printer.filial_id || '',
+      contador_negro_inicial: printer.contador_negro_inicial,
+      contador_color_inicial: printer.contador_color_inicial,
+      descripcion: printer.descripcion || '',
+      estado: printer.estado,
+    });
+    setDialogOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const validation = impresoraSchema.safeParse({
+      ...formData,
+      sector_id: formData.sector_id || null,
+      filial_id: formData.filial_id || null,
+      descripcion: formData.descripcion || null,
+    });
+
+    if (!validation.success) {
+      toast({
+        variant: 'destructive',
+        title: 'Error de validación',
+        description: validation.error.errors[0].message,
+      });
+      return;
+    }
+
+    setSaving(true);
+
+    const dataToSave = {
+      ...formData,
+      sector_id: formData.sector_id || null,
+      filial_id: formData.filial_id || null,
+      descripcion: formData.descripcion || null,
+      editado_por: user?.id,
+    };
+
+    if (editingPrinter) {
+      // Track changes for history
+      const changes: { campo: string; anterior: string; nuevo: string }[] = [];
+      
+      if (editingPrinter.sector_id !== dataToSave.sector_id) {
+        changes.push({
+          campo: 'sector',
+          anterior: sectores.find(s => s.id === editingPrinter.sector_id)?.nombre || 'Sin sector',
+          nuevo: sectores.find(s => s.id === dataToSave.sector_id)?.nombre || 'Sin sector',
+        });
+      }
+      if (editingPrinter.estado !== dataToSave.estado) {
+        changes.push({
+          campo: 'estado',
+          anterior: editingPrinter.estado,
+          nuevo: dataToSave.estado,
+        });
+      }
+      if (editingPrinter.filial_id !== dataToSave.filial_id) {
+        changes.push({
+          campo: 'filial',
+          anterior: filiales.find(f => f.id === editingPrinter.filial_id)?.nombre || 'Sin filial',
+          nuevo: filiales.find(f => f.id === dataToSave.filial_id)?.nombre || 'Sin filial',
+        });
+      }
+
+      const { error } = await supabase
+        .from('impresoras')
+        .update({
+          ...dataToSave,
+          contador_negro_actual: editingPrinter.contador_negro_actual,
+          contador_color_actual: editingPrinter.contador_color_actual,
+        })
+        .eq('id', editingPrinter.id);
+
+      if (error) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+      } else {
+        // Save history
+        for (const change of changes) {
+          await supabase.from('historial_cambios').insert({
+            impresora_id: editingPrinter.id,
+            campo_modificado: change.campo,
+            valor_anterior: change.anterior,
+            valor_nuevo: change.nuevo,
+            usuario_id: user?.id,
+          });
+        }
+        toast({ title: 'Éxito', description: 'Impresora actualizada correctamente' });
+      }
+    } else {
+      const { error } = await supabase.from('impresoras').insert({
+        ...dataToSave,
+        contador_negro_actual: dataToSave.contador_negro_inicial,
+        contador_color_actual: dataToSave.contador_color_inicial,
+      });
+
+      if (error) {
+        if (error.message.includes('duplicate key')) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Ya existe una impresora con esa serie' });
+        } else {
+          toast({ variant: 'destructive', title: 'Error', description: error.message });
+        }
+      } else {
+        toast({ title: 'Éxito', description: 'Impresora registrada correctamente' });
+      }
+    }
+
+    setSaving(false);
+    setDialogOpen(false);
+    resetForm();
+    fetchData();
+  };
+
+  const handleAddSector = async () => {
+    if (!newSectorName.trim()) return;
+    
+    const { data, error } = await supabase
+      .from('sectores')
+      .insert({ nombre: newSectorName.trim() })
+      .select()
+      .single();
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else if (data) {
+      setSectores([...sectores, data]);
+      setFormData({ ...formData, sector_id: data.id });
+      setNewSectorOpen(false);
+      setNewSectorName('');
+      toast({ title: 'Éxito', description: 'Sector creado' });
+    }
+  };
+
+  const handleAddFilial = async () => {
+    if (!newFilialName.trim()) return;
+    
+    const { data, error } = await supabase
+      .from('filiales')
+      .insert({ nombre: newFilialName.trim() })
+      .select()
+      .single();
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else if (data) {
+      setFiliales([...filiales, data]);
+      setFormData({ ...formData, filial_id: data.id });
+      setNewFilialOpen(false);
+      setNewFilialName('');
+      toast({ title: 'Éxito', description: 'Filial creada' });
+    }
+  };
+
+  const fetchHistorial = async (printerId: string) => {
+    setSelectedPrinterId(printerId);
+    const { data } = await supabase
+      .from('historial_cambios')
+      .select('*, profiles:usuario_id(email)')
+      .eq('impresora_id', printerId)
+      .order('created_at', { ascending: false });
+    
+    setHistorial(data || []);
+    setHistorialOpen(true);
+  };
+
+  const filteredImpresoras = impresoras.filter(imp =>
+    imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
+    imp.serie.toLowerCase().includes(search.toLowerCase()) ||
+    imp.modelo.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const getStatusBadge = (estado: EstadoImpresora) => {
+    const statusMap: Record<EstadoImpresora, { label: string; className: string }> = {
+      activa: { label: 'Activa', className: 'status-active' },
+      inactiva: { label: 'Inactiva', className: 'status-inactive' },
+      en_reparacion: { label: 'En Reparación', className: 'status-repair' },
+      baja: { label: 'Baja', className: 'status-disabled' },
+    };
+    const status = statusMap[estado];
+    return (
+      <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', status.className)}>
+        {status.label}
+      </span>
+    );
+  };
+
+  const isAdmin = role === 'admin';
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Impresoras</h1>
+            <p className="text-muted-foreground">Gestión y registro de equipos</p>
+          </div>
+          
+          {isAdmin && (
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Nueva Impresora
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>
+                    {editingPrinter ? 'Editar Impresora' : 'Registrar Nueva Impresora'}
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="serie">Serie (Único) *</Label>
+                      <Input
+                        id="serie"
+                        value={formData.serie}
+                        onChange={e => setFormData({ ...formData, serie: e.target.value })}
+                        placeholder="SN-123456"
+                        required
+                        disabled={!!editingPrinter}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="nombre">Nombre *</Label>
+                      <Input
+                        id="nombre"
+                        value={formData.nombre}
+                        onChange={e => setFormData({ ...formData, nombre: e.target.value })}
+                        placeholder="Impresora Principal"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="modelo">Modelo *</Label>
+                      <Input
+                        id="modelo"
+                        value={formData.modelo}
+                        onChange={e => setFormData({ ...formData, modelo: e.target.value })}
+                        placeholder="HP LaserJet Pro"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Tipo de Consumo *</Label>
+                      <Select
+                        value={formData.tipo_consumo}
+                        onValueChange={v => setFormData({ ...formData, tipo_consumo: v as TipoConsumo })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tinta">Tinta</SelectItem>
+                          <SelectItem value="toner">Tóner</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Tipo de Impresión *</Label>
+                      <Select
+                        value={formData.tipo_impresion}
+                        onValueChange={v => setFormData({ ...formData, tipo_impresion: v as TipoImpresion })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="monocromatico">Monocromático</SelectItem>
+                          <SelectItem value="color">Color</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Estado *</Label>
+                      <Select
+                        value={formData.estado}
+                        onValueChange={v => setFormData({ ...formData, estado: v as EstadoImpresora })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="activa">Activa</SelectItem>
+                          <SelectItem value="inactiva">Inactiva</SelectItem>
+                          <SelectItem value="en_reparacion">En Reparación</SelectItem>
+                          <SelectItem value="baja">Baja</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label>Sector</Label>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setNewSectorOpen(true)}>
+                          + Nuevo
+                        </Button>
+                      </div>
+                      <Select
+                        value={formData.sector_id}
+                        onValueChange={v => setFormData({ ...formData, sector_id: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar sector" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sectores.map(s => (
+                            <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <Label>Filial</Label>
+                        <Button type="button" variant="ghost" size="sm" onClick={() => setNewFilialOpen(true)}>
+                          + Nueva
+                        </Button>
+                      </div>
+                      <Select
+                        value={formData.filial_id}
+                        onValueChange={v => setFormData({ ...formData, filial_id: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar filial" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filiales.map(f => (
+                            <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="contador_negro">Contador Negro Inicial</Label>
+                      <Input
+                        id="contador_negro"
+                        type="number"
+                        min="0"
+                        value={formData.contador_negro_inicial}
+                        onChange={e => setFormData({ ...formData, contador_negro_inicial: parseInt(e.target.value) || 0 })}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="contador_color">Contador Color Inicial</Label>
+                      <Input
+                        id="contador_color"
+                        type="number"
+                        min="0"
+                        value={formData.contador_color_inicial}
+                        onChange={e => setFormData({ ...formData, contador_color_inicial: parseInt(e.target.value) || 0 })}
+                        disabled={formData.tipo_impresion === 'monocromatico'}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="descripcion">Descripción</Label>
+                    <Textarea
+                      id="descripcion"
+                      value={formData.descripcion}
+                      onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
+                      placeholder="Notas adicionales sobre la impresora..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={saving}>
+                      {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      {editingPrinter ? 'Guardar Cambios' : 'Registrar'}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
+
+        {/* Search */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nombre, serie o modelo..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Table */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5" />
+              Lista de Impresoras ({filteredImpresoras.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : filteredImpresoras.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Printer className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                <p>No se encontraron impresoras</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Serie</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Modelo</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Consumo</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Contadores</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredImpresoras.map((imp) => (
+                      <TableRow key={imp.id}>
+                        <TableCell className="font-mono text-sm">{imp.serie}</TableCell>
+                        <TableCell className="font-medium">{imp.nombre}</TableCell>
+                        <TableCell>{imp.modelo}</TableCell>
+                        <TableCell className="capitalize">{imp.tipo_impresion}</TableCell>
+                        <TableCell className="capitalize">{imp.tipo_consumo}</TableCell>
+                        <TableCell>{getStatusBadge(imp.estado)}</TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {imp.tipo_impresion === 'color' ? (
+                              <>
+                                <span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}
+                                {imp.tipo_consumo === 'toner' && (
+                                  <> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
+                                )}
+                              </>
+                            ) : (
+                              <><span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            {isAdmin && (
+                              <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}>
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" onClick={() => fetchHistorial(imp.id)}>
+                              <History className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* New Sector Dialog */}
+        <Dialog open={newSectorOpen} onOpenChange={setNewSectorOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nuevo Sector</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Input
+                placeholder="Nombre del sector"
+                value={newSectorName}
+                onChange={e => setNewSectorName(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setNewSectorOpen(false)}>Cancelar</Button>
+                <Button onClick={handleAddSector}>Crear</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* New Filial Dialog */}
+        <Dialog open={newFilialOpen} onOpenChange={setNewFilialOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Nueva Filial</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <Input
+                placeholder="Nombre de la filial"
+                value={newFilialName}
+                onChange={e => setNewFilialName(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setNewFilialOpen(false)}>Cancelar</Button>
+                <Button onClick={handleAddFilial}>Crear</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Historial Dialog */}
+        <Dialog open={historialOpen} onOpenChange={setHistorialOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Historial de Cambios</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-96 overflow-y-auto">
+              {historial.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8">No hay cambios registrados</p>
+              ) : (
+                <div className="space-y-3">
+                  {historial.map((h) => (
+                    <div key={h.id} className="p-3 bg-muted/50 rounded-lg">
+                      <div className="flex justify-between text-sm">
+                        <span className="font-medium capitalize">{h.campo_modificado}</span>
+                        <span className="text-muted-foreground">
+                          {new Date(h.created_at).toLocaleDateString('es')}
+                        </span>
+                      </div>
+                      <p className="text-sm mt-1">
+                        <span className="text-destructive">{h.valor_anterior}</span>
+                        {' → '}
+                        <span className="text-success">{h.valor_nuevo}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Por: {h.profiles?.email || 'Usuario desconocido'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </DashboardLayout>
+  );
+}
