@@ -1,0 +1,545 @@
+import { useEffect, useState, useMemo } from 'react';
+import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { 
+  Plus, 
+  Loader2, 
+  Printer, 
+  AlertTriangle, 
+  TrendingUp, 
+  FileText,
+  ArrowRight,
+  Upload,
+  Calculator,
+  Clock,
+  CheckCircle2
+} from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+
+interface Impresora {
+  id: string;
+  serie: string;
+  nombre: string;
+  modelo: string;
+  tipo_consumo: string;
+  tipo_impresion: string;
+  contador_negro_actual: number;
+  contador_color_actual: number;
+  contador_negro_inicial: number;
+  contador_color_inicial: number;
+}
+
+interface LecturaContador {
+  id: string;
+  impresora_id: string;
+  contador_negro: number | null;
+  contador_color: number | null;
+  fecha_lectura: string;
+  notas: string | null;
+  registrado_por: string;
+  impresoras?: {
+    nombre: string;
+    serie: string;
+    tipo_impresion: string;
+  };
+}
+
+const HIGH_CONSUMPTION_THRESHOLD = 5000; // Alert if > 5000 pages
+
+export default function RegistroUso() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [impresoras, setImpresoras] = useState<Impresora[]>([]);
+  const [lecturas, setLecturas] = useState<LecturaContador[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  const [selectedPrinter, setSelectedPrinter] = useState<string>('');
+  const [contadorNegro, setContadorNegro] = useState<string>('');
+  const [contadorColor, setContadorColor] = useState<string>('');
+  const [notas, setNotas] = useState('');
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    
+    const [impResp, lecResp] = await Promise.all([
+      supabase.from('impresoras').select('*').eq('estado', 'activa').order('nombre'),
+      supabase
+        .from('lecturas_contadores')
+        .select('*, impresoras(nombre, serie, tipo_impresion)')
+        .order('fecha_lectura', { ascending: false })
+        .limit(100),
+    ]);
+
+    if (impResp.data) setImpresoras(impResp.data);
+    if (lecResp.data) setLecturas(lecResp.data as LecturaContador[]);
+    
+    setLoading(false);
+  };
+
+  const selectedPrinterData = impresoras.find(p => p.id === selectedPrinter);
+
+  // Calculate pages printed in real-time
+  const paginasNegro = useMemo(() => {
+    if (!selectedPrinterData || !contadorNegro) return 0;
+    const nuevo = parseInt(contadorNegro) || 0;
+    return Math.max(0, nuevo - selectedPrinterData.contador_negro_actual);
+  }, [selectedPrinterData, contadorNegro]);
+
+  const paginasColor = useMemo(() => {
+    if (!selectedPrinterData || !contadorColor) return 0;
+    const nuevo = parseInt(contadorColor) || 0;
+    return Math.max(0, nuevo - selectedPrinterData.contador_color_actual);
+  }, [selectedPrinterData, contadorColor]);
+
+  const showBothCounters = selectedPrinterData?.tipo_consumo === 'toner' && selectedPrinterData?.tipo_impresion === 'color';
+  const showOnlyColor = selectedPrinterData?.tipo_impresion === 'color' && selectedPrinterData?.tipo_consumo === 'tinta';
+  const showOnlyBlack = selectedPrinterData?.tipo_impresion === 'monocromatico';
+
+  const isHighConsumption = paginasNegro > HIGH_CONSUMPTION_THRESHOLD || paginasColor > HIGH_CONSUMPTION_THRESHOLD;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedPrinter || !user) return;
+
+    const printer = impresoras.find(p => p.id === selectedPrinter);
+    if (!printer) return;
+
+    const negroValue = parseInt(contadorNegro) || 0;
+    const colorValue = parseInt(contadorColor) || 0;
+
+    // Validate counters can never decrease
+    if (showOnlyBlack || showBothCounters) {
+      if (negroValue < printer.contador_negro_actual) {
+        toast({
+          variant: 'destructive',
+          title: 'Error de validación',
+          description: 'El contador negro no puede ser menor al valor actual. Los contadores nunca disminuyen.',
+        });
+        return;
+      }
+    }
+
+    if (showOnlyColor || showBothCounters) {
+      if (colorValue < printer.contador_color_actual) {
+        toast({
+          variant: 'destructive',
+          title: 'Error de validación',
+          description: 'El contador color no puede ser menor al valor actual. Los contadores nunca disminuyen.',
+        });
+        return;
+      }
+    }
+
+    setSaving(true);
+
+    // Insert reading
+    const { error: lecturaError } = await supabase.from('lecturas_contadores').insert({
+      impresora_id: selectedPrinter,
+      contador_negro: (showOnlyBlack || showBothCounters) ? negroValue : null,
+      contador_color: (showOnlyColor || showBothCounters) ? colorValue : null,
+      registrado_por: user.id,
+      notas: notas || null,
+    });
+
+    if (lecturaError) {
+      toast({ variant: 'destructive', title: 'Error', description: lecturaError.message });
+      setSaving(false);
+      return;
+    }
+
+    // Update printer counters
+    const updates: Record<string, number> = {};
+    if (showOnlyBlack || showBothCounters) {
+      updates.contador_negro_actual = negroValue;
+    }
+    if (showOnlyColor || showBothCounters) {
+      updates.contador_color_actual = colorValue;
+    }
+
+    const { error: updateError } = await supabase
+      .from('impresoras')
+      .update(updates)
+      .eq('id', selectedPrinter);
+
+    if (updateError) {
+      toast({ variant: 'destructive', title: 'Error', description: updateError.message });
+    } else {
+      toast({ title: 'Lectura registrada', description: `Se registraron ${paginasNegro + paginasColor} páginas impresas.` });
+      setDialogOpen(false);
+      resetForm();
+      fetchData();
+    }
+
+    setSaving(false);
+  };
+
+  const resetForm = () => {
+    setSelectedPrinter('');
+    setContadorNegro('');
+    setContadorColor('');
+    setNotas('');
+  };
+
+  // Stats calculations
+  const totalPaginasHoy = lecturas
+    .filter(l => new Date(l.fecha_lectura).toDateString() === new Date().toDateString())
+    .reduce((acc, l) => acc + (l.contador_negro || 0) + (l.contador_color || 0), 0);
+
+  const lecturasHoy = lecturas.filter(l => 
+    new Date(l.fecha_lectura).toDateString() === new Date().toDateString()
+  ).length;
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Calculator className="w-7 h-7 text-primary" />
+              </div>
+              Registro de Uso
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Registra las lecturas de contadores de páginas impresas
+            </p>
+          </div>
+          
+          <div className="flex gap-2">
+            <Button variant="outline" className="gap-2" disabled>
+              <Upload className="w-4 h-4" />
+              Carga Masiva (CSV)
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Nueva Lectura
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Printer className="w-5 h-5 text-primary" />
+                    Registrar Lectura de Contador
+                  </DialogTitle>
+                </DialogHeader>
+                
+                <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Seleccionar Impresora *</Label>
+                    <Select value={selectedPrinter} onValueChange={setSelectedPrinter}>
+                      <SelectTrigger className="h-11">
+                        <SelectValue placeholder="Buscar impresora..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover">
+                        {impresoras.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{p.nombre}</span>
+                              <span className="text-muted-foreground text-xs">({p.serie})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedPrinterData && (
+                    <>
+                      <Card className="bg-muted/50 border-border/50">
+                        <CardContent className="pt-4 space-y-3">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Modelo</span>
+                            <span className="font-medium">{selectedPrinterData.modelo}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Tipo</span>
+                            <Badge variant="outline">
+                              {selectedPrinterData.tipo_impresion} / {selectedPrinterData.tipo_consumo}
+                            </Badge>
+                          </div>
+                          <Separator />
+                          <div className="text-sm font-medium text-muted-foreground mb-2">
+                            Contadores Actuales:
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            {(showOnlyBlack || showBothCounters) && (
+                              <div className="p-3 rounded-lg bg-background border">
+                                <p className="text-xs text-muted-foreground">Contador Negro</p>
+                                <p className="text-xl font-bold">{selectedPrinterData.contador_negro_actual.toLocaleString()}</p>
+                              </div>
+                            )}
+                            {(showOnlyColor || showBothCounters) && (
+                              <div className="p-3 rounded-lg bg-background border">
+                                <p className="text-xs text-muted-foreground">Contador Color</p>
+                                <p className="text-xl font-bold">{selectedPrinterData.contador_color_actual.toLocaleString()}</p>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* New counter inputs */}
+                      <div className="space-y-4">
+                        {(showOnlyBlack || showBothCounters) && (
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Nuevo Contador Negro *</Label>
+                            <Input
+                              type="number"
+                              min={selectedPrinterData.contador_negro_actual}
+                              value={contadorNegro}
+                              onChange={e => setContadorNegro(e.target.value)}
+                              placeholder={`Mínimo: ${selectedPrinterData.contador_negro_actual}`}
+                              className="h-11"
+                              required
+                            />
+                          </div>
+                        )}
+
+                        {(showOnlyColor || showBothCounters) && (
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium">Nuevo Contador Color *</Label>
+                            <Input
+                              type="number"
+                              min={selectedPrinterData.contador_color_actual}
+                              value={contadorColor}
+                              onChange={e => setContadorColor(e.target.value)}
+                              placeholder={`Mínimo: ${selectedPrinterData.contador_color_actual}`}
+                              className="h-11"
+                              required
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Real-time calculation */}
+                      {(contadorNegro || contadorColor) && (
+                        <Card className={cn(
+                          "border-2",
+                          isHighConsumption ? "border-warning bg-warning/5" : "border-success bg-success/5"
+                        )}>
+                          <CardContent className="pt-4">
+                            <div className="flex items-center gap-2 mb-3">
+                              <TrendingUp className={cn("w-5 h-5", isHighConsumption ? "text-warning" : "text-success")} />
+                              <span className="font-semibold">Cálculo de Páginas Impresas</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              {(showOnlyBlack || showBothCounters) && paginasNegro > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  <span>Negro: <strong className="text-lg">{paginasNegro.toLocaleString()}</strong> págs</span>
+                                </div>
+                              )}
+                              {(showOnlyColor || showBothCounters) && paginasColor > 0 && (
+                                <div className="flex items-center gap-2">
+                                  <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                  <span>Color: <strong className="text-lg">{paginasColor.toLocaleString()}</strong> págs</span>
+                                </div>
+                              )}
+                            </div>
+                            {isHighConsumption && (
+                              <div className="flex items-center gap-2 mt-3 text-warning text-sm">
+                                <AlertTriangle className="w-4 h-4" />
+                                <span>Consumo elevado detectado</span>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium">Observaciones (opcional)</Label>
+                        <Textarea
+                          value={notas}
+                          onChange={e => setNotas(e.target.value)}
+                          placeholder="Notas adicionales sobre esta lectura..."
+                          className="min-h-[80px]"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button type="submit" disabled={saving || !selectedPrinter} className="min-w-[120px]">
+                      {saving ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4 mr-2" />
+                          Registrar
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="hover-lift">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-primary/10">
+                  <FileText className="w-6 h-6 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Lecturas</p>
+                  <p className="text-2xl font-bold">{lecturas.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="hover-lift">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-success/10">
+                  <Printer className="w-6 h-6 text-success" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Impresoras Activas</p>
+                  <p className="text-2xl font-bold">{impresoras.length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="hover-lift">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-info/10">
+                  <Clock className="w-6 h-6 text-info" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Lecturas Hoy</p>
+                  <p className="text-2xl font-bold">{lecturasHoy}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-lift">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-warning/10">
+                  <TrendingUp className="w-6 h-6 text-warning" />
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Páginas Hoy</p>
+                  <p className="text-2xl font-bold">{totalPaginasHoy.toLocaleString()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Recent Readings with quick history */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-primary" />
+              Historial Rápido de Lecturas
+            </CardTitle>
+            <CardDescription>
+              Últimas lecturas registradas en el sistema
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              </div>
+            ) : lecturas.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                <p className="text-lg font-medium">No hay lecturas registradas</p>
+                <p className="text-sm">Comienza registrando la primera lectura de contadores</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Fecha/Hora</TableHead>
+                      <TableHead>Impresora</TableHead>
+                      <TableHead>Serie</TableHead>
+                      <TableHead className="text-right">Negro</TableHead>
+                      <TableHead className="text-right">Color</TableHead>
+                      <TableHead>Registrado por</TableHead>
+                      <TableHead>Notas</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lecturas.slice(0, 20).map((lectura) => (
+                      <TableRow key={lectura.id} className="hover:bg-muted/50">
+                        <TableCell className="whitespace-nowrap">
+                          {new Date(lectura.fecha_lectura).toLocaleDateString('es', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                          <br />
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(lectura.fecha_lectura).toLocaleTimeString('es', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {lectura.impresoras?.nombre || '-'}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">
+                          {lectura.impresoras?.serie || '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {lectura.contador_negro?.toLocaleString() ?? '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {lectura.contador_color?.toLocaleString() ?? '-'}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          -
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
+                          {lectura.notas || '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+}

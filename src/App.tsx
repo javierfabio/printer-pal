@@ -13,6 +13,9 @@ import Dashboard from "./pages/Dashboard";
 import Impresoras from "./pages/Impresoras";
 import Informes from "./pages/Informes";
 import Configuraciones from "./pages/Configuraciones";
+import RegistroUso from "./pages/RegistroUso";
+import Historial from "./pages/Historial";
+import Usuarios from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,9 +40,17 @@ const App = () => (
                 }
               />
               <Route
-                path="/dashboard/impresoras"
+                path="/dashboard/registro-uso"
                 element={
                   <ProtectedRoute>
+                    <RegistroUso />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/impresoras"
+                element={
+                  <ProtectedRoute requireAdmin>
                     <Impresoras />
                   </ProtectedRoute>
                 }
@@ -49,6 +60,22 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <Informes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/historial"
+                element={
+                  <ProtectedRoute>
+                    <Historial />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/usuarios"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    <Usuarios />
                   </ProtectedRoute>
                 }
               />

@@ -1,14 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Printer, Loader2, AlertCircle } from 'lucide-react';
+import { Printer, Loader2, AlertCircle, Eye, EyeOff, Shield, Globe, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
+import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido'),
@@ -25,12 +33,89 @@ const signupSchema = z.object({
   path: ['confirmPassword'],
 });
 
+type Language = 'es' | 'en';
+
+const translations = {
+  es: {
+    title: 'PrintControl',
+    subtitle: 'Sistema de Control de Impresoras',
+    login: 'Iniciar Sesión',
+    signup: 'Registrarse',
+    email: 'Correo electrónico',
+    password: 'Contraseña',
+    confirmPassword: 'Confirmar Contraseña',
+    fullName: 'Nombre Completo',
+    rememberMe: 'Recordar sesión',
+    forgotPassword: '¿Olvidaste tu contraseña?',
+    enable2FA: 'Activar verificación en dos pasos',
+    loginButton: 'Iniciar Sesión',
+    signupButton: 'Crear Cuenta',
+    emailPlaceholder: 'correo@ejemplo.com',
+    passwordPlaceholder: '••••••••',
+    namePlaceholder: 'Juan Pérez',
+    errorLogin: 'Error al iniciar sesión',
+    errorSignup: 'Error al registrarse',
+    invalidCredentials: 'Credenciales incorrectas',
+    alreadyRegistered: 'Este email ya está registrado',
+    accountCreated: 'Cuenta creada',
+    accountCreatedDesc: 'Tu cuenta ha sido creada exitosamente.',
+    secureConnection: 'Conexión segura',
+    allRightsReserved: 'Todos los derechos reservados',
+  },
+  en: {
+    title: 'PrintControl',
+    subtitle: 'Printer Control System',
+    login: 'Sign In',
+    signup: 'Sign Up',
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    fullName: 'Full Name',
+    rememberMe: 'Remember me',
+    forgotPassword: 'Forgot your password?',
+    enable2FA: 'Enable two-factor authentication',
+    loginButton: 'Sign In',
+    signupButton: 'Create Account',
+    emailPlaceholder: 'email@example.com',
+    passwordPlaceholder: '••••••••',
+    namePlaceholder: 'John Doe',
+    errorLogin: 'Login error',
+    errorSignup: 'Signup error',
+    invalidCredentials: 'Invalid credentials',
+    alreadyRegistered: 'This email is already registered',
+    accountCreated: 'Account created',
+    accountCreatedDesc: 'Your account has been created successfully.',
+    secureConnection: 'Secure connection',
+    allRightsReserved: 'All rights reserved',
+  },
+};
+
 export default function Auth() {
   const navigate = useNavigate();
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [enable2FA, setEnable2FA] = useState(false);
+  const [language, setLanguage] = useState<Language>('es');
+
+  const t = translations[language];
+
+  // Load saved language preference
+  useEffect(() => {
+    const savedLang = localStorage.getItem('preferredLanguage') as Language;
+    if (savedLang && (savedLang === 'es' || savedLang === 'en')) {
+      setLanguage(savedLang);
+    }
+  }, []);
+
+  const changeLanguage = (lang: Language) => {
+    setLanguage(lang);
+    localStorage.setItem('preferredLanguage', lang);
+  };
 
   // Redirect if already logged in
   if (user) {
@@ -65,12 +150,15 @@ export default function Auth() {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Error al iniciar sesión',
+        title: t.errorLogin,
         description: error.message === 'Invalid login credentials' 
-          ? 'Credenciales incorrectas' 
+          ? t.invalidCredentials 
           : error.message,
       });
     } else {
+      if (rememberMe) {
+        localStorage.setItem('rememberSession', 'true');
+      }
       navigate('/dashboard');
     }
   };
@@ -104,158 +192,303 @@ export default function Auth() {
     if (error) {
       let message = error.message;
       if (error.message.includes('already registered')) {
-        message = 'Este email ya está registrado';
+        message = t.alreadyRegistered;
       }
       toast({
         variant: 'destructive',
-        title: 'Error al registrarse',
+        title: t.errorSignup,
         description: message,
       });
     } else {
       toast({
-        title: 'Cuenta creada',
-        description: 'Tu cuenta ha sido creada exitosamente.',
+        title: t.accountCreated,
+        description: t.accountCreatedDesc,
       });
       navigate('/dashboard');
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="absolute inset-0 gradient-primary opacity-5" />
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Animated background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
+      <div className="absolute inset-0">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+      </div>
+
+      {/* Language selector */}
+      <div className="absolute top-4 right-4 z-20">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+              <Globe className="w-4 h-4" />
+              {language === 'es' ? 'Español' : 'English'}
+              <ChevronDown className="w-3 h-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="bg-card">
+            <DropdownMenuItem onClick={() => changeLanguage('es')}>
+              🇪🇸 Español
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => changeLanguage('en')}>
+              🇺🇸 English
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       
-      <Card className="w-full max-w-md relative z-10 shadow-xl animate-fade-in">
+      <Card className="w-full max-w-md relative z-10 shadow-2xl animate-fade-in border-border/50 backdrop-blur-sm bg-card/95">
         <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center mb-4">
-            <Printer className="w-8 h-8 text-primary-foreground" />
+          <div className="mx-auto w-20 h-20 rounded-2xl gradient-primary flex items-center justify-center mb-4 shadow-lg shadow-primary/25 animate-scale-in">
+            <Printer className="w-10 h-10 text-primary-foreground" />
           </div>
-          <CardTitle className="text-2xl font-bold">PrintControl</CardTitle>
-          <CardDescription>Sistema de Control de Impresoras</CardDescription>
+          <CardTitle className="text-3xl font-bold tracking-tight">{t.title}</CardTitle>
+          <CardDescription className="text-muted-foreground">{t.subtitle}</CardDescription>
         </CardHeader>
 
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-              <TabsTrigger value="signup">Registrarse</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50">
+              <TabsTrigger value="login" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                {t.login}
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
+                {t.signup}
+              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login">
+            <TabsContent value="login" className="animate-fade-in">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
+                  <Label htmlFor="login-email" className="text-sm font-medium">{t.email}</Label>
                   <Input
                     id="login-email"
                     name="email"
                     type="email"
-                    placeholder="correo@ejemplo.com"
+                    placeholder={t.emailPlaceholder}
                     required
+                    className={cn(
+                      "transition-all duration-200",
+                      errors.email && "border-destructive ring-destructive/20 ring-2"
+                    )}
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? "email-error" : undefined}
                   />
                   {errors.email && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
+                    <p id="email-error" className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
                       <AlertCircle className="w-3 h-3" /> {errors.email}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="login-password">Contraseña</Label>
-                  <Input
-                    id="login-password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                  />
+                  <Label htmlFor="login-password" className="text-sm font-medium">{t.password}</Label>
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={t.passwordPlaceholder}
+                      required
+                      className={cn(
+                        "pr-10 transition-all duration-200",
+                        errors.password && "border-destructive ring-destructive/20 ring-2"
+                      )}
+                      aria-invalid={!!errors.password}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
                   {errors.password && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
+                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
                       <AlertCircle className="w-3 h-3" /> {errors.password}
                     </p>
                   )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="remember" 
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    />
+                    <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
+                      {t.rememberMe}
+                    </Label>
+                  </div>
+                  <Button type="button" variant="link" className="text-sm p-0 h-auto text-primary">
+                    {t.forgotPassword}
+                  </Button>
+                </div>
+
+                {/* 2FA Option */}
+                <div className="flex items-center space-x-2 p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <Shield className="w-4 h-4 text-primary" />
+                  <div className="flex-1">
+                    <Label htmlFor="2fa" className="text-sm cursor-pointer">
+                      {t.enable2FA}
+                    </Label>
+                  </div>
+                  <Checkbox 
+                    id="2fa" 
+                    checked={enable2FA}
+                    onCheckedChange={(checked) => setEnable2FA(checked === true)}
+                  />
+                </div>
+
+                <Button type="submit" className="w-full h-11 font-medium" disabled={loading}>
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Iniciar Sesión
+                  {t.loginButton}
                 </Button>
               </form>
             </TabsContent>
 
-            <TabsContent value="signup">
+            <TabsContent value="signup" className="animate-fade-in">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nombre Completo</Label>
+                  <Label htmlFor="signup-name" className="text-sm font-medium">{t.fullName}</Label>
                   <Input
                     id="signup-name"
                     name="fullName"
                     type="text"
-                    placeholder="Juan Pérez"
+                    placeholder={t.namePlaceholder}
                     required
+                    className={cn(
+                      "transition-all duration-200",
+                      errors.fullName && "border-destructive ring-destructive/20 ring-2"
+                    )}
                   />
                   {errors.fullName && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
+                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
                       <AlertCircle className="w-3 h-3" /> {errors.fullName}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
+                  <Label htmlFor="signup-email" className="text-sm font-medium">{t.email}</Label>
                   <Input
                     id="signup-email"
                     name="email"
                     type="email"
-                    placeholder="correo@ejemplo.com"
+                    placeholder={t.emailPlaceholder}
                     required
+                    className={cn(
+                      "transition-all duration-200",
+                      errors.email && "border-destructive ring-destructive/20 ring-2"
+                    )}
                   />
                   {errors.email && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
+                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
                       <AlertCircle className="w-3 h-3" /> {errors.email}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password">Contraseña</Label>
-                  <Input
-                    id="signup-password"
-                    name="password"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                  />
+                  <Label htmlFor="signup-password" className="text-sm font-medium">{t.password}</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={t.passwordPlaceholder}
+                      required
+                      className={cn(
+                        "pr-10 transition-all duration-200",
+                        errors.password && "border-destructive ring-destructive/20 ring-2"
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
                   {errors.password && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
+                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
                       <AlertCircle className="w-3 h-3" /> {errors.password}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-confirm">Confirmar Contraseña</Label>
-                  <Input
-                    id="signup-confirm"
-                    name="confirmPassword"
-                    type="password"
-                    placeholder="••••••••"
-                    required
-                  />
+                  <Label htmlFor="signup-confirm" className="text-sm font-medium">{t.confirmPassword}</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-confirm"
+                      name="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder={t.passwordPlaceholder}
+                      required
+                      className={cn(
+                        "pr-10 transition-all duration-200",
+                        errors.confirmPassword && "border-destructive ring-destructive/20 ring-2"
+                      )}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </Button>
+                  </div>
                   {errors.confirmPassword && (
-                    <p className="text-sm text-destructive flex items-center gap-1">
+                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
                       <AlertCircle className="w-3 h-3" /> {errors.confirmPassword}
                     </p>
                   )}
                 </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
+                <Button type="submit" className="w-full h-11 font-medium" disabled={loading}>
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Crear Cuenta
+                  {t.signupButton}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
+
+          {/* Security footer */}
+          <div className="mt-6 pt-4 border-t border-border/50 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <Shield className="w-3 h-3" />
+            <span>{t.secureConnection}</span>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Footer */}
+      <p className="absolute bottom-4 text-xs text-muted-foreground/60">
+        © {new Date().getFullYear()} PrintControl. {t.allRightsReserved}
+      </p>
     </div>
   );
 }

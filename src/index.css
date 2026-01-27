@@ -3,10 +3,11 @@
 @tailwind utilities;
 
 /* Sistema de Control de Impresoras - Design System */
+/* Theme: Dark by default with corporate aesthetics */
 
 @layer base {
   :root {
-    /* Background colors */
+    /* Light mode - Clean corporate theme */
     --background: 210 20% 98%;
     --foreground: 222 47% 11%;
 
@@ -42,7 +43,7 @@
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 0 0% 0%;
     --info: 199 89% 48%;
     --info-foreground: 0 0% 100%;
 
@@ -53,15 +54,15 @@
 
     --radius: 0.75rem;
 
-    /* Sidebar */
+    /* Sidebar - Dark even in light mode for contrast */
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary: 217 91% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 222 47% 18%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 222 47% 20%;
-    --sidebar-ring: 221 83% 53%;
+    --sidebar-ring: 217 91% 60%;
 
     /* Chart colors */
     --chart-1: 221 83% 53%;
@@ -72,7 +73,7 @@
   }
 
   .dark {
-    /* Dark mode - Deep blue-gray theme */
+    /* Dark mode - Deep professional dark theme */
     --background: 222 47% 6%;
     --foreground: 210 40% 98%;
 
@@ -181,7 +182,8 @@
   
   .hover-lift:hover {
     transform: translateY(-4px);
-    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    box-shadow: 0 10px 25px -5px hsl(var(--primary) / 0.15),
+                0 8px 10px -6px hsl(var(--primary) / 0.1);
   }
 
   /* Gradient backgrounds */
@@ -190,32 +192,138 @@
   }
 
   .gradient-sidebar {
-    background: linear-gradient(180deg, hsl(var(--sidebar-background)) 0%, hsl(222 47% 8%) 100%);
+    background: linear-gradient(180deg, hsl(var(--sidebar-background)) 0%, hsl(222 47% 4%) 100%);
+  }
+
+  /* Subtle glow effects */
+  .glow-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.3);
   }
 }
 
-/* Custom scrollbar */
+/* Custom scrollbar - refined for dark theme */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background-color: hsl(var(--muted) / 0.5);
+  background-color: hsl(var(--muted) / 0.3);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--muted-foreground) / 0.3);
+  background-color: hsl(var(--muted-foreground) / 0.2);
   border-radius: 9999px;
+  transition: background-color 0.2s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--muted-foreground) / 0.5);
+  background-color: hsl(var(--muted-foreground) / 0.4);
 }
 
-/* Focus visible styles */
+/* Focus visible styles - accessible */
 *:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--ring));
+}
+
+/* Animations */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Card hover states */
+.card-interactive {
+  transition: all 0.2s ease-in-out;
+  cursor: pointer;
+}
+
+.card-interactive:hover {
+  border-color: hsl(var(--primary) / 0.5);
+  box-shadow: 0 4px 12px hsl(var(--primary) / 0.1);
+}
+
+/* Table enhancements */
+.table-row-hover:hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+/* Input focus enhancements */
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: hsl(var(--primary));
+}
+
+/* Badge variants */
+.badge-success {
+  background-color: hsl(var(--success) / 0.1);
+  color: hsl(var(--success));
+  border-color: hsl(var(--success) / 0.2);
+}
+
+.badge-warning {
+  background-color: hsl(var(--warning) / 0.1);
+  color: hsl(var(--warning));
+  border-color: hsl(var(--warning) / 0.2);
+}
+
+.badge-info {
+  background-color: hsl(var(--info) / 0.1);
+  color: hsl(var(--info));
+  border-color: hsl(var(--info) / 0.2);
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    background: white !important;
+    color: black !important;
+  }
 }
