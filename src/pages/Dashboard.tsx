@@ -3,6 +3,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { 
   Printer, 
   AlertTriangle, 
@@ -13,7 +14,8 @@ import {
   FileText,
   BarChart3,
   ArrowUpRight,
-  Clock
+  Clock,
+  Package
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -51,6 +53,31 @@ interface RecentReading {
   };
 }
 
+interface PiezaConAlerta {
+  id: string;
+  nombre_pieza: string;
+  tipo_pieza: string;
+  vida_util_estimada: number;
+  contador_instalacion: number;
+  paginas_consumidas: number;
+  impresoras?: {
+    nombre: string;
+    contador_negro_actual: number;
+    contador_color_actual: number;
+  };
+}
+
+const TIPO_PIEZA_LABELS: Record<string, string> = {
+  toner_negro: 'Tóner Negro',
+  toner_color: 'Tóner Color',
+  fusor: 'Fusor',
+  unidad_imagen: 'Unidad de Imagen',
+  malla: 'Malla',
+  transfer_belt: 'Transfer Belt',
+  rodillo: 'Rodillo',
+  otro: 'Otra Pieza',
+};
+
 export default function Dashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
@@ -60,6 +87,7 @@ export default function Dashboard() {
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
+  const [piezasConAlerta, setPiezasConAlerta] = useState<PiezaConAlerta[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,12 +95,15 @@ export default function Dashboard() {
       setLoading(true);
       
       // Fetch all data in parallel
-      const [printersResp, readingsResp] = await Promise.all([
+      const [printersResp, readingsResp, piezasResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie)')
           .order('fecha_lectura', { ascending: false })
-          .limit(10)
+          .limit(10),
+        supabase.from('piezas_impresora')
+          .select('*, impresoras(nombre, contador_negro_actual, contador_color_actual)')
+          .eq('activo', true)
       ]);
 
       if (printersResp.data) {
@@ -120,11 +151,37 @@ export default function Dashboard() {
         }));
       }
 
+      // Process parts with alerts
+      if (piezasResp.data) {
+        const alertParts = piezasResp.data.filter((pieza: PiezaConAlerta) => {
+          const contadorActual = pieza.impresoras 
+            ? (pieza.impresoras.contador_negro_actual || 0) + (pieza.impresoras.contador_color_actual || 0)
+            : 0;
+          const paginasUsadas = contadorActual - pieza.contador_instalacion + pieza.paginas_consumidas;
+          const porcentaje = (paginasUsadas / pieza.vida_util_estimada) * 100;
+          return porcentaje >= 70; // Warning threshold
+        });
+        setPiezasConAlerta(alertParts as PiezaConAlerta[]);
+      }
+
       setLoading(false);
     };
 
     fetchData();
   }, []);
+
+  const getPartStatus = (pieza: PiezaConAlerta) => {
+    const contadorActual = pieza.impresoras 
+      ? (pieza.impresoras.contador_negro_actual || 0) + (pieza.impresoras.contador_color_actual || 0)
+      : 0;
+    const paginasUsadas = contadorActual - pieza.contador_instalacion + pieza.paginas_consumidas;
+    const porcentaje = Math.min(100, (paginasUsadas / pieza.vida_util_estimada) * 100);
+    
+    let status: 'warning' | 'critical' = 'warning';
+    if (porcentaje >= 90) status = 'critical';
+    
+    return { porcentaje, status };
+  };
 
   const statCards = [
     {
@@ -144,12 +201,13 @@ export default function Dashboard() {
       bgColor: 'bg-success/10',
     },
     {
-      title: 'En Reparación',
-      value: stats.enReparacion,
-      subtitle: 'Requieren atención',
-      icon: Wrench,
+      title: 'Piezas con Alerta',
+      value: piezasConAlerta.length,
+      subtitle: 'Próximas a vencer',
+      icon: Package,
       color: 'text-warning',
       bgColor: 'bg-warning/10',
+      onClick: () => navigate('/dashboard/piezas'),
     },
     {
       title: 'Lecturas Hoy',
@@ -160,21 +218,6 @@ export default function Dashboard() {
       bgColor: 'bg-info/10',
     },
   ];
-
-  const getStatusBadge = (estado: string) => {
-    const statusMap: Record<string, { label: string; className: string }> = {
-      activa: { label: 'Activa', className: 'status-active' },
-      inactiva: { label: 'Inactiva', className: 'status-inactive' },
-      en_reparacion: { label: 'En Reparación', className: 'status-repair' },
-      baja: { label: 'Baja', className: 'status-disabled' },
-    };
-    const status = statusMap[estado] || statusMap.inactiva;
-    return (
-      <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', status.className)}>
-        {status.label}
-      </span>
-    );
-  };
 
   return (
     <DashboardLayout>
@@ -200,8 +243,12 @@ export default function Dashboard() {
           {statCards.map((stat, index) => (
             <Card 
               key={stat.title} 
-              className="hover-lift animate-fade-in cursor-pointer transition-shadow hover:shadow-lg" 
+              className={cn(
+                "hover-lift animate-fade-in transition-shadow hover:shadow-lg",
+                stat.onClick && "cursor-pointer"
+              )}
               style={{ animationDelay: `${index * 100}ms` }}
+              onClick={stat.onClick}
             >
               <CardContent className="pt-6">
                 <div className="flex items-start justify-between">
@@ -219,16 +266,84 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {/* Alerts Section */}
+        {/* Parts Alerts Section */}
+        {piezasConAlerta.length > 0 && (
+          <Card className="border-warning/50 bg-warning/5 animate-fade-in" style={{ animationDelay: '200ms' }}>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-warning">
+                <Package className="w-5 h-5" />
+                Piezas que Requieren Atención
+              </CardTitle>
+              <CardDescription>
+                Componentes próximos a vencer o con vida útil agotada
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {piezasConAlerta.slice(0, 6).map(pieza => {
+                  const { porcentaje, status } = getPartStatus(pieza);
+                  return (
+                    <div 
+                      key={pieza.id} 
+                      className={cn(
+                        "p-3 rounded-lg border",
+                        status === 'critical' ? "border-destructive/50 bg-destructive/5" : "border-warning/50 bg-warning/5"
+                      )}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <Badge variant="outline" className={cn(
+                          "text-xs",
+                          status === 'critical' ? "border-destructive text-destructive" : "border-warning text-warning"
+                        )}>
+                          {TIPO_PIEZA_LABELS[pieza.tipo_pieza] || pieza.tipo_pieza}
+                        </Badge>
+                        <span className={cn(
+                          "text-sm font-bold",
+                          status === 'critical' ? "text-destructive" : "text-warning"
+                        )}>
+                          {porcentaje.toFixed(0)}%
+                        </span>
+                      </div>
+                      <p className="text-sm font-medium truncate">{pieza.nombre_pieza}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {pieza.impresoras?.nombre}
+                      </p>
+                      <Progress 
+                        value={porcentaje} 
+                        className={cn(
+                          "h-1.5 mt-2",
+                          status === 'critical' ? "[&>div]:bg-destructive" : "[&>div]:bg-warning"
+                        )}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+              {piezasConAlerta.length > 6 && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="mt-4"
+                  onClick={() => navigate('/dashboard/piezas')}
+                >
+                  Ver todas las piezas ({piezasConAlerta.length})
+                  <ArrowUpRight className="w-4 h-4 ml-1" />
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Repair Alerts */}
         {stats.enReparacion > 0 && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in" style={{ animationDelay: '300ms' }}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
                 <div className="p-3 rounded-xl bg-warning/20">
-                  <AlertTriangle className="w-6 h-6 text-warning" />
+                  <Wrench className="w-6 h-6 text-warning" />
                 </div>
                 <div className="flex-1">
-                  <p className="font-semibold text-warning">Atención Requerida</p>
+                  <p className="font-semibold text-warning">Impresoras en Reparación</p>
                   <p className="text-sm text-muted-foreground">
                     Hay {stats.enReparacion} impresora(s) en reparación que requieren seguimiento.
                   </p>

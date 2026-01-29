@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Progress } from '@/components/ui/progress';
 import { 
   Plus, 
   Loader2, 
@@ -21,7 +22,9 @@ import {
   Upload,
   Calculator,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  Package,
+  Droplets
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -56,6 +59,26 @@ interface LecturaContador {
   };
 }
 
+interface PiezaImpresora {
+  id: string;
+  tipo_pieza: string;
+  nombre_pieza: string;
+  vida_util_estimada: number;
+  contador_instalacion: number;
+  paginas_consumidas: number;
+}
+
+const TIPO_PIEZA_LABELS: Record<string, string> = {
+  toner_negro: 'Tóner Negro',
+  toner_color: 'Tóner Color',
+  fusor: 'Fusor',
+  unidad_imagen: 'Unidad de Imagen',
+  malla: 'Malla',
+  transfer_belt: 'Transfer Belt',
+  rodillo: 'Rodillo',
+  otro: 'Otra Pieza',
+};
+
 const HIGH_CONSUMPTION_THRESHOLD = 5000; // Alert if > 5000 pages
 
 export default function RegistroUso() {
@@ -63,6 +86,7 @@ export default function RegistroUso() {
   const { toast } = useToast();
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [lecturas, setLecturas] = useState<LecturaContador[]>([]);
+  const [piezasPrinter, setPiezasPrinter] = useState<PiezaImpresora[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -94,6 +118,26 @@ export default function RegistroUso() {
     setLoading(false);
   };
 
+  // Fetch parts when printer is selected
+  useEffect(() => {
+    const fetchPiezas = async () => {
+      if (!selectedPrinter) {
+        setPiezasPrinter([]);
+        return;
+      }
+      
+      const { data } = await supabase
+        .from('piezas_impresora')
+        .select('*')
+        .eq('impresora_id', selectedPrinter)
+        .eq('activo', true);
+      
+      if (data) setPiezasPrinter(data as PiezaImpresora[]);
+    };
+    
+    fetchPiezas();
+  }, [selectedPrinter]);
+
   const selectedPrinterData = impresoras.find(p => p.id === selectedPrinter);
 
   // Calculate pages printed in real-time
@@ -109,11 +153,44 @@ export default function RegistroUso() {
     return Math.max(0, nuevo - selectedPrinterData.contador_color_actual);
   }, [selectedPrinterData, contadorColor]);
 
+  const totalPaginas = paginasNegro + paginasColor;
+
   const showBothCounters = selectedPrinterData?.tipo_consumo === 'toner' && selectedPrinterData?.tipo_impresion === 'color';
   const showOnlyColor = selectedPrinterData?.tipo_impresion === 'color' && selectedPrinterData?.tipo_consumo === 'tinta';
   const showOnlyBlack = selectedPrinterData?.tipo_impresion === 'monocromatico';
 
   const isHighConsumption = paginasNegro > HIGH_CONSUMPTION_THRESHOLD || paginasColor > HIGH_CONSUMPTION_THRESHOLD;
+
+  // Calculate parts impact
+  const piezasImpacto = useMemo(() => {
+    if (!piezasPrinter.length || !totalPaginas) return [];
+    
+    const contadorActual = selectedPrinterData 
+      ? selectedPrinterData.contador_negro_actual + selectedPrinterData.contador_color_actual 
+      : 0;
+    
+    return piezasPrinter.map(pieza => {
+      const paginasUsadasActual = contadorActual - pieza.contador_instalacion + pieza.paginas_consumidas;
+      const porcentajeActual = (paginasUsadasActual / pieza.vida_util_estimada) * 100;
+      
+      const paginasUsadasNuevo = paginasUsadasActual + totalPaginas;
+      const porcentajeNuevo = (paginasUsadasNuevo / pieza.vida_util_estimada) * 100;
+      
+      const paginasRestantes = Math.max(0, pieza.vida_util_estimada - paginasUsadasNuevo);
+      
+      let status: 'ok' | 'warning' | 'critical' = 'ok';
+      if (porcentajeNuevo >= 90) status = 'critical';
+      else if (porcentajeNuevo >= 70) status = 'warning';
+      
+      return {
+        ...pieza,
+        porcentajeActual,
+        porcentajeNuevo,
+        paginasRestantes,
+        status,
+      };
+    });
+  }, [piezasPrinter, totalPaginas, selectedPrinterData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,7 +260,19 @@ export default function RegistroUso() {
     if (updateError) {
       toast({ variant: 'destructive', title: 'Error', description: updateError.message });
     } else {
-      toast({ title: 'Lectura registrada', description: `Se registraron ${paginasNegro + paginasColor} páginas impresas.` });
+      // Update paginas_consumidas for each active part
+      if (piezasPrinter.length > 0 && totalPaginas > 0) {
+        for (const pieza of piezasPrinter) {
+          await supabase
+            .from('piezas_impresora')
+            .update({ 
+              paginas_consumidas: pieza.paginas_consumidas + totalPaginas 
+            })
+            .eq('id', pieza.id);
+        }
+      }
+      
+      toast({ title: 'Lectura registrada', description: `Se registraron ${totalPaginas.toLocaleString()} páginas impresas.` });
       setDialogOpen(false);
       resetForm();
       fetchData();
@@ -197,6 +286,7 @@ export default function RegistroUso() {
     setContadorNegro('');
     setContadorColor('');
     setNotas('');
+    setPiezasPrinter([]);
   };
 
   // Stats calculations
@@ -237,7 +327,7 @@ export default function RegistroUso() {
                   Nueva Lectura
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Printer className="w-5 h-5 text-primary" />
@@ -368,6 +458,74 @@ export default function RegistroUso() {
                         </Card>
                       )}
 
+                      {/* Parts Impact Section */}
+                      {piezasImpacto.length > 0 && totalPaginas > 0 && (
+                        <Card className="border-info/50 bg-info/5">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm flex items-center gap-2">
+                              <Package className="w-4 h-4 text-info" />
+                              Impacto en Piezas Instaladas
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            {piezasImpacto.map(pieza => (
+                              <div key={pieza.id} className={cn(
+                                "p-3 rounded-lg border",
+                                pieza.status === 'critical' && "border-destructive/50 bg-destructive/5",
+                                pieza.status === 'warning' && "border-warning/50 bg-warning/5",
+                                pieza.status === 'ok' && "border-border"
+                              )}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-2">
+                                    <Droplets className={cn(
+                                      "w-4 h-4",
+                                      pieza.status === 'critical' && "text-destructive",
+                                      pieza.status === 'warning' && "text-warning",
+                                      pieza.status === 'ok' && "text-info"
+                                    )} />
+                                    <span className="text-sm font-medium">
+                                      {TIPO_PIEZA_LABELS[pieza.tipo_pieza] || pieza.nombre_pieza}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground">
+                                      {pieza.porcentajeActual.toFixed(0)}%
+                                    </span>
+                                    <ArrowRight className="w-3 h-3 text-muted-foreground" />
+                                    <span className={cn(
+                                      "text-sm font-bold",
+                                      pieza.status === 'critical' && "text-destructive",
+                                      pieza.status === 'warning' && "text-warning",
+                                      pieza.status === 'ok' && "text-success"
+                                    )}>
+                                      {Math.min(100, pieza.porcentajeNuevo).toFixed(0)}%
+                                    </span>
+                                  </div>
+                                </div>
+                                <Progress 
+                                  value={Math.min(100, pieza.porcentajeNuevo)} 
+                                  className={cn(
+                                    "h-2",
+                                    pieza.status === 'critical' && "[&>div]:bg-destructive",
+                                    pieza.status === 'warning' && "[&>div]:bg-warning",
+                                    pieza.status === 'ok' && "[&>div]:bg-info"
+                                  )}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1">
+                                  {pieza.paginasRestantes.toLocaleString()} páginas restantes
+                                </p>
+                                {pieza.status === 'critical' && (
+                                  <div className="flex items-center gap-1 mt-2 text-destructive text-xs">
+                                    <AlertTriangle className="w-3 h-3" />
+                                    <span>Esta pieza necesita reemplazo pronto</span>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+                      )}
+
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Observaciones (opcional)</Label>
                         <Textarea
@@ -492,7 +650,6 @@ export default function RegistroUso() {
                       <TableHead>Serie</TableHead>
                       <TableHead className="text-right">Negro</TableHead>
                       <TableHead className="text-right">Color</TableHead>
-                      <TableHead>Registrado por</TableHead>
                       <TableHead>Notas</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -524,9 +681,6 @@ export default function RegistroUso() {
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {lectura.contador_color?.toLocaleString() ?? '-'}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          -
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
                           {lectura.notas || '-'}
