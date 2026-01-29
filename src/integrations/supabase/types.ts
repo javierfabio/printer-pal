@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      configuracion_piezas: {
+        Row: {
+          activo: boolean
+          created_at: string
+          id: string
+          nombre_display: string
+          tipo_pieza: Database["public"]["Enums"]["tipo_pieza"]
+          umbral_advertencia: number
+          umbral_critico: number
+          updated_at: string
+          vida_util_default: number
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          nombre_display: string
+          tipo_pieza: Database["public"]["Enums"]["tipo_pieza"]
+          umbral_advertencia?: number
+          umbral_critico?: number
+          updated_at?: string
+          vida_util_default: number
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          id?: string
+          nombre_display?: string
+          tipo_pieza?: Database["public"]["Enums"]["tipo_pieza"]
+          umbral_advertencia?: number
+          umbral_critico?: number
+          updated_at?: string
+          vida_util_default?: number
+        }
+        Relationships: []
+      }
       filiales: {
         Row: {
           activo: boolean | null
@@ -75,6 +111,72 @@ export type Database = {
             columns: ["impresora_id"]
             isOneToOne: false
             referencedRelation: "impresoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historial_piezas: {
+        Row: {
+          contador_cambio: number
+          created_at: string
+          fecha_cambio: string
+          id: string
+          impresora_id: string
+          motivo: string | null
+          nombre_pieza: string
+          observaciones: string | null
+          pieza_anterior_id: string | null
+          porcentaje_vida_consumida: number | null
+          tecnico_id: string | null
+          tipo_pieza: Database["public"]["Enums"]["tipo_pieza"]
+          vida_util_estimada: number
+          vida_util_real: number | null
+        }
+        Insert: {
+          contador_cambio: number
+          created_at?: string
+          fecha_cambio?: string
+          id?: string
+          impresora_id: string
+          motivo?: string | null
+          nombre_pieza: string
+          observaciones?: string | null
+          pieza_anterior_id?: string | null
+          porcentaje_vida_consumida?: number | null
+          tecnico_id?: string | null
+          tipo_pieza: Database["public"]["Enums"]["tipo_pieza"]
+          vida_util_estimada: number
+          vida_util_real?: number | null
+        }
+        Update: {
+          contador_cambio?: number
+          created_at?: string
+          fecha_cambio?: string
+          id?: string
+          impresora_id?: string
+          motivo?: string | null
+          nombre_pieza?: string
+          observaciones?: string | null
+          pieza_anterior_id?: string | null
+          porcentaje_vida_consumida?: number | null
+          tecnico_id?: string | null
+          tipo_pieza?: Database["public"]["Enums"]["tipo_pieza"]
+          vida_util_estimada?: number
+          vida_util_real?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historial_piezas_impresora_id_fkey"
+            columns: ["impresora_id"]
+            isOneToOne: false
+            referencedRelation: "impresoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historial_piezas_pieza_anterior_id_fkey"
+            columns: ["pieza_anterior_id"]
+            isOneToOne: false
+            referencedRelation: "piezas_impresora"
             referencedColumns: ["id"]
           },
         ]
@@ -195,6 +297,62 @@ export type Database = {
           },
         ]
       }
+      piezas_impresora: {
+        Row: {
+          activo: boolean
+          contador_instalacion: number
+          created_at: string
+          fecha_instalacion: string
+          id: string
+          impresora_id: string
+          instalado_por: string | null
+          nombre_pieza: string
+          notas: string | null
+          paginas_consumidas: number
+          tipo_pieza: Database["public"]["Enums"]["tipo_pieza"]
+          updated_at: string
+          vida_util_estimada: number
+        }
+        Insert: {
+          activo?: boolean
+          contador_instalacion?: number
+          created_at?: string
+          fecha_instalacion?: string
+          id?: string
+          impresora_id: string
+          instalado_por?: string | null
+          nombre_pieza: string
+          notas?: string | null
+          paginas_consumidas?: number
+          tipo_pieza: Database["public"]["Enums"]["tipo_pieza"]
+          updated_at?: string
+          vida_util_estimada: number
+        }
+        Update: {
+          activo?: boolean
+          contador_instalacion?: number
+          created_at?: string
+          fecha_instalacion?: string
+          id?: string
+          impresora_id?: string
+          instalado_por?: string | null
+          nombre_pieza?: string
+          notas?: string | null
+          paginas_consumidas?: number
+          tipo_pieza?: Database["public"]["Enums"]["tipo_pieza"]
+          updated_at?: string
+          vida_util_estimada?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "piezas_impresora_impresora_id_fkey"
+            columns: ["impresora_id"]
+            isOneToOne: false
+            referencedRelation: "impresoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -286,6 +444,15 @@ export type Database = {
       consumo_tipo: "tinta" | "toner"
       impresion_tipo: "monocromatico" | "color"
       impresora_estado: "activa" | "inactiva" | "en_reparacion" | "baja"
+      tipo_pieza:
+        | "toner_negro"
+        | "toner_color"
+        | "fusor"
+        | "unidad_imagen"
+        | "malla"
+        | "transfer_belt"
+        | "rodillo"
+        | "otro"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -417,6 +584,16 @@ export const Constants = {
       consumo_tipo: ["tinta", "toner"],
       impresion_tipo: ["monocromatico", "color"],
       impresora_estado: ["activa", "inactiva", "en_reparacion", "baja"],
+      tipo_pieza: [
+        "toner_negro",
+        "toner_color",
+        "fusor",
+        "unidad_imagen",
+        "malla",
+        "transfer_belt",
+        "rodillo",
+        "otro",
+      ],
     },
   },
 } as const

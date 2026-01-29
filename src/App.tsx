@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Impresoras from "./pages/Impresoras";
+import Piezas from "./pages/Piezas";
 import Informes from "./pages/Informes";
 import Configuraciones from "./pages/Configuraciones";
 import RegistroUso from "./pages/RegistroUso";
@@ -44,6 +45,14 @@ const App = () => (
                 element={
                   <ProtectedRoute>
                     <RegistroUso />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/piezas"
+                element={
+                  <ProtectedRoute>
+                    <Piezas />
                   </ProtectedRoute>
                 }
               />
