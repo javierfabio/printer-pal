@@ -21,6 +21,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { usePartsAlerts, TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
 
 interface Stats {
   total: number;
@@ -53,41 +54,16 @@ interface RecentReading {
   };
 }
 
-interface PiezaConAlerta {
-  id: string;
-  nombre_pieza: string;
-  tipo_pieza: string;
-  vida_util_estimada: number;
-  contador_instalacion: number;
-  paginas_consumidas: number;
-  impresoras?: {
-    nombre: string;
-    contador_negro_actual: number;
-    contador_color_actual: number;
-  };
-}
-
-const TIPO_PIEZA_LABELS: Record<string, string> = {
-  toner_negro: 'Tóner Negro',
-  toner_color: 'Tóner Color',
-  fusor: 'Fusor',
-  unidad_imagen: 'Unidad de Imagen',
-  malla: 'Malla',
-  transfer_belt: 'Transfer Belt',
-  rodillo: 'Rodillo',
-  otro: 'Otra Pieza',
-};
-
 export default function Dashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
+  const { alerts: piezasConAlerta, loading: alertsLoading } = usePartsAlerts();
   const [stats, setStats] = useState<Stats>({
     total: 0, activas: 0, enReparacion: 0, inactivas: 0,
     totalPaginasNegro: 0, totalPaginasColor: 0, lecturasHoy: 0, paginasHoy: 0
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
-  const [piezasConAlerta, setPiezasConAlerta] = useState<PiezaConAlerta[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -95,15 +71,12 @@ export default function Dashboard() {
       setLoading(true);
       
       // Fetch all data in parallel
-      const [printersResp, readingsResp, piezasResp] = await Promise.all([
+      const [printersResp, readingsResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie)')
           .order('fecha_lectura', { ascending: false })
           .limit(10),
-        supabase.from('piezas_impresora')
-          .select('*, impresoras(nombre, contador_negro_actual, contador_color_actual)')
-          .eq('activo', true)
       ]);
 
       if (printersResp.data) {
@@ -151,37 +124,11 @@ export default function Dashboard() {
         }));
       }
 
-      // Process parts with alerts
-      if (piezasResp.data) {
-        const alertParts = piezasResp.data.filter((pieza: PiezaConAlerta) => {
-          const contadorActual = pieza.impresoras 
-            ? (pieza.impresoras.contador_negro_actual || 0) + (pieza.impresoras.contador_color_actual || 0)
-            : 0;
-          const paginasUsadas = contadorActual - pieza.contador_instalacion + pieza.paginas_consumidas;
-          const porcentaje = (paginasUsadas / pieza.vida_util_estimada) * 100;
-          return porcentaje >= 70; // Warning threshold
-        });
-        setPiezasConAlerta(alertParts as PiezaConAlerta[]);
-      }
-
       setLoading(false);
     };
 
     fetchData();
   }, []);
-
-  const getPartStatus = (pieza: PiezaConAlerta) => {
-    const contadorActual = pieza.impresoras 
-      ? (pieza.impresoras.contador_negro_actual || 0) + (pieza.impresoras.contador_color_actual || 0)
-      : 0;
-    const paginasUsadas = contadorActual - pieza.contador_instalacion + pieza.paginas_consumidas;
-    const porcentaje = Math.min(100, (paginasUsadas / pieza.vida_util_estimada) * 100);
-    
-    let status: 'warning' | 'critical' = 'warning';
-    if (porcentaje >= 90) status = 'critical';
-    
-    return { porcentaje, status };
-  };
 
   const statCards = [
     {
@@ -280,44 +227,41 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {piezasConAlerta.slice(0, 6).map(pieza => {
-                  const { porcentaje, status } = getPartStatus(pieza);
-                  return (
+                {piezasConAlerta.slice(0, 6).map(pieza => (
                     <div 
                       key={pieza.id} 
                       className={cn(
                         "p-3 rounded-lg border",
-                        status === 'critical' ? "border-destructive/50 bg-destructive/5" : "border-warning/50 bg-warning/5"
+                        pieza.status === 'critical' ? "border-destructive/50 bg-destructive/5" : "border-warning/50 bg-warning/5"
                       )}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <Badge variant="outline" className={cn(
                           "text-xs",
-                          status === 'critical' ? "border-destructive text-destructive" : "border-warning text-warning"
+                          pieza.status === 'critical' ? "border-destructive text-destructive" : "border-warning text-warning"
                         )}>
                           {TIPO_PIEZA_LABELS[pieza.tipo_pieza] || pieza.tipo_pieza}
                         </Badge>
                         <span className={cn(
                           "text-sm font-bold",
-                          status === 'critical' ? "text-destructive" : "text-warning"
+                          pieza.status === 'critical' ? "text-destructive" : "text-warning"
                         )}>
-                          {porcentaje.toFixed(0)}%
+                          {pieza.porcentaje.toFixed(0)}%
                         </span>
                       </div>
                       <p className="text-sm font-medium truncate">{pieza.nombre_pieza}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {pieza.impresoras?.nombre}
+                        {pieza.impresora?.nombre}
                       </p>
                       <Progress 
-                        value={porcentaje} 
+                        value={pieza.porcentaje} 
                         className={cn(
                           "h-1.5 mt-2",
-                          status === 'critical' ? "[&>div]:bg-destructive" : "[&>div]:bg-warning"
+                          pieza.status === 'critical' ? "[&>div]:bg-destructive" : "[&>div]:bg-warning"
                         )}
                       />
                     </div>
-                  );
-                })}
+                  ))}
               </div>
               {piezasConAlerta.length > 6 && (
                 <Button 
