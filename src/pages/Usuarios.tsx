@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -10,13 +9,13 @@ import {
   Shield, 
   Loader2,
   UserCheck,
-  UserX,
   Clock
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { AddUserDialog } from '@/components/users/AddUserDialog';
 
 interface UserWithRole {
   id: string;
@@ -122,16 +121,19 @@ export default function Usuarios() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Users className="w-7 h-7 text-primary" />
-            </div>
-            Gestión de Usuarios
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Administra los usuarios y sus roles en el sistema
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Users className="w-7 h-7 text-primary" />
+              </div>
+              Gestión de Usuarios
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Administra los usuarios y sus roles en el sistema
+            </p>
+          </div>
+          <AddUserDialog onUserAdded={fetchUsers} />
         </div>
 
         {/* Stats */}
