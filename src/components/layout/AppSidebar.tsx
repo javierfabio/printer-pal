@@ -17,7 +17,7 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { title: 'Inicio', url: '/dashboard', icon: Home },
-  { title: 'Registro de Uso', url: '/dashboard/registro-uso', icon: ClipboardList, priority: true },
+  { title: 'Registro de Uso', url: '/dashboard/registro-uso', icon: ClipboardList },
   { title: 'Gestión de Piezas', url: '/dashboard/piezas', icon: Wrench },
   { title: 'Registrar Impresora', url: '/dashboard/impresoras', icon: Printer, adminOnly: true },
   { title: 'Informes', url: '/dashboard/informes', icon: BarChart3 },

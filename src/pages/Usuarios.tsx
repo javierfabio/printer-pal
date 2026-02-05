@@ -41,18 +41,22 @@ export default function Usuarios() {
   const fetchUsers = async () => {
     setLoading(true);
     
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*, user_roles(role)')
-      .order('created_at', { ascending: false });
+    // Fetch profiles and user_roles separately due to no FK relationship
+    const [profilesResp, rolesResp] = await Promise.all([
+      supabase.from('profiles').select('*').order('created_at', { ascending: false }),
+      supabase.from('user_roles').select('user_id, role'),
+    ]);
 
-    if (data && !error) {
-      setUsers(data.map((u: any) => ({
+    if (profilesResp.data && !profilesResp.error) {
+      const rolesMap = new Map<string, 'admin' | 'user'>();
+      rolesResp.data?.forEach((r: any) => rolesMap.set(r.user_id, r.role));
+      
+      setUsers(profilesResp.data.map((u: any) => ({
         id: u.id,
         email: u.email,
         full_name: u.full_name,
         created_at: u.created_at,
-        role: u.user_roles?.[0]?.role || 'user',
+        role: rolesMap.get(u.id) || 'user',
       })));
     }
     
