@@ -21,12 +21,14 @@ import {
   History,
   Settings,
   Printer,
-  TrendingDown
+  Pencil
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { EditPiezaDialog } from '@/components/piezas/EditPiezaDialog';
+import { EditConfiguracionDialog } from '@/components/piezas/EditConfiguracionDialog';
 
 type TipoPieza = 'toner_negro' | 'toner_color' | 'fusor' | 'unidad_imagen' | 'malla' | 'transfer_belt' | 'rodillo' | 'otro';
 
@@ -111,6 +113,11 @@ export default function Piezas() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cambioDialogOpen, setCambioDialogOpen] = useState(false);
   const [selectedPieza, setSelectedPieza] = useState<PiezaImpresora | null>(null);
+  
+  // Edit dialogs
+  const [editPiezaDialogOpen, setEditPiezaDialogOpen] = useState(false);
+  const [editConfigDialogOpen, setEditConfigDialogOpen] = useState(false);
+  const [selectedConfig, setSelectedConfig] = useState<ConfiguracionPieza | null>(null);
 
   // Form state for new part
   const [formData, setFormData] = useState({
@@ -301,6 +308,16 @@ export default function Piezas() {
       nueva_vida_util: pieza.vida_util_estimada,
     });
     setCambioDialogOpen(true);
+  };
+
+  const openEditPiezaDialog = (pieza: PiezaImpresora) => {
+    setSelectedPieza(pieza);
+    setEditPiezaDialogOpen(true);
+  };
+
+  const openEditConfigDialog = (config: ConfiguracionPieza) => {
+    setSelectedConfig(config);
+    setEditConfigDialogOpen(true);
   };
 
   const getDesgasteInfo = (pieza: PiezaImpresora) => {
@@ -636,6 +653,14 @@ export default function Piezas() {
                                 )}
                                 <Button 
                                   size="sm" 
+                                  variant="ghost"
+                                  onClick={() => openEditPiezaDialog(pieza)}
+                                  className="gap-1"
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                                <Button 
+                                  size="sm" 
                                   variant="outline"
                                   onClick={() => openCambioDialog(pieza)}
                                   className="gap-2"
@@ -750,6 +775,7 @@ export default function Piezas() {
                           <TableHead>Umbral Advertencia</TableHead>
                           <TableHead>Umbral Crítico</TableHead>
                           <TableHead>Estado</TableHead>
+                          <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -777,6 +803,15 @@ export default function Piezas() {
                               ) : (
                                 <Badge variant="secondary">Inactivo</Badge>
                               )}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                onClick={() => openEditConfigDialog(config)}
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -867,6 +902,22 @@ export default function Piezas() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Edit Pieza Dialog */}
+        <EditPiezaDialog
+          pieza={selectedPieza}
+          open={editPiezaDialogOpen}
+          onOpenChange={setEditPiezaDialogOpen}
+          onPiezaUpdated={fetchData}
+        />
+
+        {/* Edit Configuracion Dialog */}
+        <EditConfiguracionDialog
+          config={selectedConfig}
+          open={editConfigDialogOpen}
+          onOpenChange={setEditConfigDialogOpen}
+          onConfigUpdated={fetchData}
+        />
       </div>
     </DashboardLayout>
   );

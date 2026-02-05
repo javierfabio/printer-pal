@@ -4,18 +4,31 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { 
   Users, 
   Shield, 
   Loader2,
   UserCheck,
-  Clock
+  Clock,
+  Pencil,
+  Trash2,
+  MoreHorizontal
 } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { AddUserDialog } from '@/components/users/AddUserDialog';
+import { EditUserDialog } from '@/components/users/EditUserDialog';
+import { DeleteUserDialog } from '@/components/users/DeleteUserDialog';
 
 interface UserWithRole {
   id: string;
@@ -31,6 +44,11 @@ export default function Usuarios() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
+  
+  // Dialog states
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
 
   const isAdmin = role === 'admin';
 
@@ -104,6 +122,16 @@ export default function Usuarios() {
     }
 
     setUpdating(null);
+  };
+
+  const handleEditUser = (user: UserWithRole) => {
+    setSelectedUser(user);
+    setEditDialogOpen(true);
+  };
+
+  const handleDeleteUser = (user: UserWithRole) => {
+    setSelectedUser(user);
+    setDeleteDialogOpen(true);
   };
 
   if (!isAdmin) {
@@ -214,7 +242,8 @@ export default function Usuarios() {
                       <TableHead>Usuario</TableHead>
                       <TableHead>Fecha de Registro</TableHead>
                       <TableHead>Rol Actual</TableHead>
-                      <TableHead className="text-right">Cambiar Rol</TableHead>
+                      <TableHead>Cambiar Rol</TableHead>
+                      <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -263,7 +292,7 @@ export default function Usuarios() {
                             )}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell>
                           <Select
                             value={user.role}
                             onValueChange={(value: 'admin' | 'user') => updateUserRole(user.id, value)}
@@ -291,6 +320,33 @@ export default function Usuarios() {
                               </SelectItem>
                             </SelectContent>
                           </Select>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="icon"
+                                disabled={user.id === currentUser?.id}
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="bg-popover">
+                              <DropdownMenuItem onClick={() => handleEditUser(user)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => handleDeleteUser(user)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Eliminar
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -336,6 +392,22 @@ export default function Usuarios() {
           </Card>
         </div>
       </div>
+
+      {/* Edit User Dialog */}
+      <EditUserDialog
+        user={selectedUser}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onUserUpdated={fetchUsers}
+      />
+
+      {/* Delete User Dialog */}
+      <DeleteUserDialog
+        user={selectedUser}
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onUserDeleted={fetchUsers}
+      />
     </DashboardLayout>
   );
 }

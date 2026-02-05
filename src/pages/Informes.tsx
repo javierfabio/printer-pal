@@ -16,12 +16,14 @@ import {
   TrendingUp,
   FileText,
   PieChart,
-  Calendar
+  Wrench
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend } from 'recharts';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Impresora {
   id: string;
@@ -47,7 +49,28 @@ interface Filial {
   nombre: string;
 }
 
+interface PiezaInfo {
+  id: string;
+  nombre_pieza: string;
+  tipo_pieza: string;
+  vida_util_estimada: number;
+  porcentaje_usado: number;
+  impresora_nombre: string;
+  impresora_serie: string;
+}
+
 const COLORS = ['hsl(221, 83%, 53%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
+
+const TIPO_PIEZA_LABELS: Record<string, string> = {
+  toner_negro: 'Tóner Negro',
+  toner_color: 'Tóner Color',
+  fusor: 'Fusor',
+  unidad_imagen: 'Unidad de Imagen',
+  malla: 'Malla / Mesh',
+  transfer_belt: 'Transfer Belt',
+  rodillo: 'Rodillo',
+  otro: 'Otra Pieza',
+};
 
 export default function Informes() {
   const { role } = useAuth();
@@ -56,6 +79,7 @@ export default function Informes() {
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
+  const [piezas, setPiezas] = useState<PiezaInfo[]>([]);
   
   // Filters
   const [filterSector, setFilterSector] = useState<string>('all');
@@ -70,15 +94,38 @@ export default function Informes() {
   const fetchData = async () => {
     setLoading(true);
     
-    const [impResp, secResp, filResp] = await Promise.all([
+    const [impResp, secResp, filResp, piezasResp] = await Promise.all([
       supabase.from('impresoras').select('*').eq('estado', 'activa'),
       supabase.from('sectores').select('*').eq('activo', true),
       supabase.from('filiales').select('*').eq('activo', true),
+      supabase
+        .from('piezas_impresora')
+        .select('*, impresoras(nombre, serie, contador_negro_actual, contador_color_actual)')
+        .eq('activo', true),
     ]);
 
     if (impResp.data) setImpresoras(impResp.data);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
+    
+    if (piezasResp.data) {
+      const piezasInfo: PiezaInfo[] = piezasResp.data.map((p: any) => {
+        const contadorActual = (p.impresoras?.contador_negro_actual || 0) + (p.impresoras?.contador_color_actual || 0);
+        const paginasUsadas = contadorActual - p.contador_instalacion + p.paginas_consumidas;
+        const porcentaje = Math.min(100, (paginasUsadas / p.vida_util_estimada) * 100);
+        
+        return {
+          id: p.id,
+          nombre_pieza: p.nombre_pieza,
+          tipo_pieza: p.tipo_pieza,
+          vida_util_estimada: p.vida_util_estimada,
+          porcentaje_usado: porcentaje,
+          impresora_nombre: p.impresoras?.nombre || '',
+          impresora_serie: p.impresoras?.serie || '',
+        };
+      });
+      setPiezas(piezasInfo);
+    }
     
     setLoading(false);
   };
@@ -126,7 +173,141 @@ export default function Informes() {
   ].filter(d => d.value > 0);
 
   const exportToPDF = () => {
-    toast({ title: 'Exportación', description: 'Función de exportación a PDF próximamente disponible.' });
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Informe de Consumo de Impresoras', pageWidth / 2, 20, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es', { 
+      day: '2-digit', 
+      month: 'long', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })}`, pageWidth / 2, 28, { align: 'center' });
+
+    // Summary section
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Resumen General', 14, 42);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Total de Impresoras: ${filteredImpresoras.length}`, 14, 50);
+    doc.text(`Total de Páginas: ${totalPaginas.toLocaleString()}`, 14, 56);
+    doc.text(`Páginas B/N: ${totalPaginasNegro.toLocaleString()}`, 14, 62);
+    doc.text(`Páginas Color: ${totalPaginasColor.toLocaleString()}`, 14, 68);
+    doc.text(`Promedio por Impresora: ${filteredImpresoras.length > 0 ? Math.round(totalPaginas / filteredImpresoras.length).toLocaleString() : 0}`, 14, 74);
+
+    // Printers table
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Detalle por Impresora', 14, 88);
+
+    const printerTableData = filteredImpresoras
+      .sort((a, b) => {
+        const totalA = (a.contador_negro_actual - a.contador_negro_inicial) + (a.contador_color_actual - a.contador_color_inicial);
+        const totalB = (b.contador_negro_actual - b.contador_negro_inicial) + (b.contador_color_actual - b.contador_color_inicial);
+        return totalB - totalA;
+      })
+      .map(imp => [
+        imp.nombre,
+        imp.modelo,
+        imp.serie,
+        (imp.contador_negro_actual - imp.contador_negro_inicial).toLocaleString(),
+        (imp.contador_color_actual - imp.contador_color_inicial).toLocaleString(),
+        ((imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial)).toLocaleString(),
+      ]);
+
+    autoTable(doc, {
+      startY: 94,
+      head: [['Nombre', 'Modelo', 'Serie', 'Pág. B/N', 'Pág. Color', 'Total']],
+      body: printerTableData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 35 },
+        1: { cellWidth: 30 },
+        2: { cellWidth: 25 },
+        3: { cellWidth: 25, halign: 'right' },
+        4: { cellWidth: 25, halign: 'right' },
+        5: { cellWidth: 25, halign: 'right' },
+      },
+    });
+
+    // Parts section on new page
+    doc.addPage();
+    
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Estado de Piezas', 14, 20);
+    
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Total de Piezas Activas: ${piezas.length}`, 14, 28);
+    doc.text(`Piezas con Alerta (>70%): ${piezas.filter(p => p.porcentaje_usado >= 70).length}`, 14, 34);
+    doc.text(`Piezas Críticas (>90%): ${piezas.filter(p => p.porcentaje_usado >= 90).length}`, 14, 40);
+
+    const piezasTableData = piezas
+      .sort((a, b) => b.porcentaje_usado - a.porcentaje_usado)
+      .map(p => [
+        TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza,
+        p.nombre_pieza,
+        p.impresora_nombre,
+        p.vida_util_estimada.toLocaleString(),
+        `${p.porcentaje_usado.toFixed(1)}%`,
+        p.porcentaje_usado >= 90 ? 'Crítico' : p.porcentaje_usado >= 70 ? 'Advertencia' : 'OK',
+      ]);
+
+    autoTable(doc, {
+      startY: 48,
+      head: [['Tipo', 'Nombre', 'Impresora', 'Vida Útil', '% Usado', 'Estado']],
+      body: piezasTableData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 30 },
+        1: { cellWidth: 35 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 25, halign: 'right' },
+        4: { cellWidth: 20, halign: 'right' },
+        5: { cellWidth: 20, halign: 'center' },
+      },
+      didParseCell: (data) => {
+        if (data.column.index === 5 && data.section === 'body') {
+          const value = data.cell.raw as string;
+          if (value === 'Crítico') {
+            data.cell.styles.textColor = [220, 38, 38];
+            data.cell.styles.fontStyle = 'bold';
+          } else if (value === 'Advertencia') {
+            data.cell.styles.textColor = [234, 179, 8];
+            data.cell.styles.fontStyle = 'bold';
+          } else {
+            data.cell.styles.textColor = [34, 197, 94];
+          }
+        }
+      },
+    });
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
+    
+    doc.save(`informe_consumo_${new Date().toISOString().split('T')[0]}.pdf`);
+    
+    toast({ title: 'PDF Generado', description: 'El informe ha sido descargado correctamente.' });
   };
 
   const exportToCSV = () => {
@@ -174,7 +355,7 @@ export default function Informes() {
               <Download className="w-4 h-4" />
               Exportar CSV
             </Button>
-            <Button onClick={exportToPDF} variant="outline" className="gap-2">
+            <Button onClick={exportToPDF} className="gap-2">
               <FileText className="w-4 h-4" />
               Exportar PDF
             </Button>
@@ -249,7 +430,7 @@ export default function Informes() {
         ) : (
           <>
             {/* Stats Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <Card className="hover-lift">
                 <CardContent className="pt-6">
                   <div className="flex items-center gap-4">
@@ -299,13 +480,27 @@ export default function Informes() {
                       <TrendingUp className="w-6 h-6 text-success" />
                     </div>
                     <div>
-                      <p className="text-sm text-muted-foreground">Promedio/Impresora</p>
+                      <p className="text-sm text-muted-foreground">Promedio/Imp.</p>
                       <p className="text-2xl font-bold">
                         {filteredImpresoras.length > 0 
                           ? Math.round(totalPaginas / filteredImpresoras.length).toLocaleString()
                           : 0
                         }
                       </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="hover-lift">
+                <CardContent className="pt-6">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-warning/10">
+                      <Wrench className="w-6 h-6 text-warning" />
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Piezas Alerta</p>
+                      <p className="text-2xl font-bold">{piezas.filter(p => p.porcentaje_usado >= 70).length}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -434,29 +629,28 @@ export default function Informes() {
                           const paginasNegro = imp.contador_negro_actual - imp.contador_negro_inicial;
                           const paginasColor = imp.contador_color_actual - imp.contador_color_inicial;
                           const total = paginasNegro + paginasColor;
-                          
+
                           return (
-                            <TableRow key={imp.id} className="hover:bg-muted/50">
+                            <TableRow key={imp.id}>
                               <TableCell>
                                 <div>
                                   <span className="font-medium">{imp.nombre}</span>
-                                  <br />
-                                  <span className="text-xs text-muted-foreground font-mono">{imp.serie}</span>
+                                  <p className="text-xs text-muted-foreground">{imp.serie}</p>
                                 </div>
                               </TableCell>
                               <TableCell>{imp.modelo}</TableCell>
                               <TableCell>
-                                <Badge variant="outline" className="capitalize">
-                                  {imp.tipo_impresion}
+                                <Badge variant="outline">
+                                  {imp.tipo_impresion === 'monocromatico' ? 'B/N' : 'Color'}
                                 </Badge>
                               </TableCell>
-                              <TableCell className="text-right font-medium">
+                              <TableCell className="text-right font-mono">
                                 {paginasNegro.toLocaleString()}
                               </TableCell>
-                              <TableCell className="text-right font-medium">
+                              <TableCell className="text-right font-mono">
                                 {paginasColor.toLocaleString()}
                               </TableCell>
-                              <TableCell className="text-right font-bold text-primary">
+                              <TableCell className="text-right font-mono font-semibold">
                                 {total.toLocaleString()}
                               </TableCell>
                             </TableRow>
