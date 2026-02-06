@@ -13,7 +13,8 @@ import {
   Clock,
   Pencil,
   Trash2,
-  MoreHorizontal
+  MoreHorizontal,
+  KeyRound
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -29,6 +30,7 @@ import { cn } from '@/lib/utils';
 import { AddUserDialog } from '@/components/users/AddUserDialog';
 import { EditUserDialog } from '@/components/users/EditUserDialog';
 import { DeleteUserDialog } from '@/components/users/DeleteUserDialog';
+import { ChangePasswordDialog } from '@/components/users/ChangePasswordDialog';
 
 interface UserWithRole {
   id: string;
@@ -48,6 +50,7 @@ export default function Usuarios() {
   // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
 
   const isAdmin = role === 'admin';
@@ -132,6 +135,11 @@ export default function Usuarios() {
   const handleDeleteUser = (user: UserWithRole) => {
     setSelectedUser(user);
     setDeleteDialogOpen(true);
+  };
+
+  const handleChangePassword = (user: UserWithRole) => {
+    setSelectedUser(user);
+    setPasswordDialogOpen(true);
   };
 
   if (!isAdmin) {
@@ -337,6 +345,10 @@ export default function Usuarios() {
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleChangePassword(user)}>
+                                <KeyRound className="w-4 h-4 mr-2" />
+                                Cambiar Contraseña
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
                                 onClick={() => handleDeleteUser(user)}
@@ -407,6 +419,13 @@ export default function Usuarios() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         onUserDeleted={fetchUsers}
+      />
+
+      {/* Change Password Dialog */}
+      <ChangePasswordDialog
+        user={selectedUser}
+        open={passwordDialogOpen}
+        onOpenChange={setPasswordDialogOpen}
       />
     </DashboardLayout>
   );
