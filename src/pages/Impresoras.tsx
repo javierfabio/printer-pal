@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Plus, Search, Edit, History, Loader2, Printer } from 'lucide-react';
+import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -74,8 +75,8 @@ export default function Impresoras() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPrinter, setEditingPrinter] = useState<Impresora | null>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
-  const [historial, setHistorial] = useState<any[]>([]);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
+  const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
   
   // Form state
   const [formData, setFormData] = useState({
@@ -296,15 +297,9 @@ export default function Impresoras() {
     }
   };
 
-  const fetchHistorial = async (printerId: string) => {
-    setSelectedPrinterId(printerId);
-    const { data } = await supabase
-      .from('historial_cambios')
-      .select('*, profiles:usuario_id(email)')
-      .eq('impresora_id', printerId)
-      .order('created_at', { ascending: false });
-    
-    setHistorial(data || []);
+  const openHistorial = (printer: Impresora) => {
+    setSelectedPrinterId(printer.id);
+    setSelectedPrinterName(printer.nombre);
     setHistorialOpen(true);
   };
 
@@ -614,7 +609,7 @@ export default function Impresoras() {
                                 <Edit className="w-4 h-4" />
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" onClick={() => fetchHistorial(imp.id)}>
+                            <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}>
                               <History className="w-4 h-4" />
                             </Button>
                           </div>
@@ -668,40 +663,13 @@ export default function Impresoras() {
           </DialogContent>
         </Dialog>
 
-        {/* Historial Dialog */}
-        <Dialog open={historialOpen} onOpenChange={setHistorialOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Historial de Cambios</DialogTitle>
-            </DialogHeader>
-            <div className="max-h-96 overflow-y-auto">
-              {historial.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No hay cambios registrados</p>
-              ) : (
-                <div className="space-y-3">
-                  {historial.map((h) => (
-                    <div key={h.id} className="p-3 bg-muted/50 rounded-lg">
-                      <div className="flex justify-between text-sm">
-                        <span className="font-medium capitalize">{h.campo_modificado}</span>
-                        <span className="text-muted-foreground">
-                          {new Date(h.created_at).toLocaleDateString('es')}
-                        </span>
-                      </div>
-                      <p className="text-sm mt-1">
-                        <span className="text-destructive">{h.valor_anterior}</span>
-                        {' → '}
-                        <span className="text-success">{h.valor_nuevo}</span>
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Por: {h.profiles?.email || 'Usuario desconocido'}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Unified Historial Dialog */}
+        <PrinterHistoryDialog
+          printerId={selectedPrinterId}
+          printerName={selectedPrinterName}
+          open={historialOpen}
+          onOpenChange={setHistorialOpen}
+        />
       </div>
     </DashboardLayout>
   );

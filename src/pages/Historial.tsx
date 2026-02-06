@@ -17,7 +17,8 @@ import {
   User,
   ArrowRight,
   Loader2,
-  FileText
+  FileText,
+  Wrench
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -55,10 +56,29 @@ interface LecturaHistorial {
   };
 }
 
+interface PiezaHistorial {
+  id: string;
+  fecha_cambio: string;
+  nombre_pieza: string;
+  tipo_pieza: string;
+  vida_util_estimada: number;
+  vida_util_real: number | null;
+  porcentaje_vida_consumida: number | null;
+  contador_cambio: number;
+  motivo: string | null;
+  observaciones: string | null;
+  impresora_id: string;
+  impresoras?: {
+    nombre: string;
+    serie: string;
+  };
+}
+
 export default function Historial() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
+  const [piezas, setPiezas] = useState<PiezaHistorial[]>([]);
   const [lecturas, setLecturas] = useState<LecturaHistorial[]>([]);
   const [impresoras, setImpresoras] = useState<{ id: string; nombre: string; serie: string }[]>([]);
   
@@ -67,7 +87,7 @@ export default function Historial() {
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios'>('lecturas');
+  const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas'>('lecturas');
 
   useEffect(() => {
     fetchData();
@@ -76,7 +96,7 @@ export default function Historial() {
   const fetchData = async () => {
     setLoading(true);
     
-    const [histResp, lecResp, impResp] = await Promise.all([
+    const [histResp, lecResp, piezasResp, impResp] = await Promise.all([
       supabase
         .from('historial_cambios')
         .select('*, impresoras(nombre, serie)')
@@ -87,11 +107,17 @@ export default function Historial() {
         .select('*, impresoras(nombre, serie)')
         .order('fecha_lectura', { ascending: false })
         .limit(200),
+      supabase
+        .from('historial_piezas')
+        .select('*, impresoras(nombre, serie)')
+        .order('fecha_cambio', { ascending: false })
+        .limit(200),
       supabase.from('impresoras').select('id, nombre, serie').order('nombre'),
     ]);
 
     if (histResp.data) setHistorial(histResp.data as HistorialItem[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaHistorial[]);
+    if (piezasResp.data) setPiezas(piezasResp.data as PiezaHistorial[]);
     if (impResp.data) setImpresoras(impResp.data);
     
     setLoading(false);
@@ -113,24 +139,46 @@ export default function Historial() {
     return true;
   });
 
+  const filteredPiezas = piezas.filter(p => {
+    if (filterPrinter !== 'all' && p.impresora_id !== filterPrinter) return false;
+    if (filterDateFrom && new Date(p.fecha_cambio) < new Date(filterDateFrom)) return false;
+    if (filterDateTo && new Date(p.fecha_cambio) > new Date(filterDateTo + 'T23:59:59')) return false;
+    if (searchTerm && !p.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+    return true;
+  });
+
   const exportToCSV = () => {
-    const data = activeTab === 'lecturas' 
-      ? filteredLecturas.map(l => ({
-          Fecha: new Date(l.fecha_lectura).toLocaleString('es'),
-          Impresora: l.impresoras?.nombre || '',
-          Serie: l.impresoras?.serie || '',
-          ContadorNegro: l.contador_negro || '',
-          ContadorColor: l.contador_color || '',
-          Notas: l.notas || '',
-        }))
-      : filteredHistorial.map(h => ({
-          Fecha: new Date(h.created_at).toLocaleString('es'),
-          Impresora: h.impresoras?.nombre || '',
-          Campo: h.campo_modificado,
-          ValorAnterior: h.valor_anterior || '',
-          ValorNuevo: h.valor_nuevo || '',
-          Motivo: h.motivo || '',
-        }));
+    let data: Record<string, any>[] = [];
+    if (activeTab === 'lecturas') {
+      data = filteredLecturas.map(l => ({
+        Fecha: new Date(l.fecha_lectura).toLocaleString('es'),
+        Impresora: l.impresoras?.nombre || '',
+        Serie: l.impresoras?.serie || '',
+        ContadorNegro: l.contador_negro || '',
+        ContadorColor: l.contador_color || '',
+        Notas: l.notas || '',
+      }));
+    } else if (activeTab === 'cambios') {
+      data = filteredHistorial.map(h => ({
+        Fecha: new Date(h.created_at).toLocaleString('es'),
+        Impresora: h.impresoras?.nombre || '',
+        Campo: h.campo_modificado,
+        ValorAnterior: h.valor_anterior || '',
+        ValorNuevo: h.valor_nuevo || '',
+        Motivo: h.motivo || '',
+      }));
+    } else {
+      data = filteredPiezas.map(p => ({
+        Fecha: new Date(p.fecha_cambio).toLocaleString('es'),
+        Impresora: p.impresoras?.nombre || '',
+        Pieza: p.nombre_pieza,
+        Tipo: p.tipo_pieza,
+        VidaUtilEstimada: p.vida_util_estimada,
+        VidaUtilReal: p.vida_util_real || '',
+        PorcentajeConsumo: p.porcentaje_vida_consumida ? `${p.porcentaje_vida_consumida}%` : '',
+        Motivo: p.motivo || '',
+      }));
+    }
 
     const headers = Object.keys(data[0] || {}).join(',');
     const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
@@ -193,6 +241,15 @@ export default function Historial() {
           >
             <HistoryIcon className="w-4 h-4" />
             Cambios en Impresoras
+          </Button>
+          <Button
+            variant={activeTab === 'piezas' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setActiveTab('piezas')}
+            className="gap-2"
+          >
+            <Wrench className="w-4 h-4" />
+            Reemplazo de Piezas
           </Button>
         </div>
 
@@ -265,12 +322,14 @@ export default function Historial() {
         <Card>
           <CardHeader>
             <CardTitle>
-              {activeTab === 'lecturas' ? 'Historial de Lecturas' : 'Historial de Cambios'}
+              {activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : 'Historial de Reemplazo de Piezas'}
             </CardTitle>
             <CardDescription>
               {activeTab === 'lecturas' 
                 ? `${filteredLecturas.length} lecturas encontradas`
-                : `${filteredHistorial.length} cambios encontrados`
+                : activeTab === 'cambios'
+                ? `${filteredHistorial.length} cambios encontrados`
+                : `${filteredPiezas.length} reemplazos encontrados`
               }
             </CardDescription>
           </CardHeader>
@@ -338,7 +397,7 @@ export default function Historial() {
                   </Table>
                 </div>
               )
-            ) : (
+            ) : activeTab === 'cambios' ? (
               filteredHistorial.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   <HistoryIcon className="w-16 h-16 mx-auto mb-4 opacity-30" />
@@ -396,6 +455,81 @@ export default function Historial() {
                           </TableCell>
                           <TableCell className="max-w-[200px] truncate text-muted-foreground">
                             {item.motivo || '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+            ) : (
+              filteredPiezas.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                  <p>No hay reemplazos que coincidan con los filtros</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha</TableHead>
+                        <TableHead>Impresora</TableHead>
+                        <TableHead>Pieza</TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead className="text-right">Vida Útil Est.</TableHead>
+                        <TableHead className="text-right">Vida Real</TableHead>
+                        <TableHead className="text-right">% Consumido</TableHead>
+                        <TableHead>Motivo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredPiezas.map((pieza) => (
+                        <TableRow key={pieza.id} className="hover:bg-muted/50">
+                          <TableCell className="whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-muted-foreground" />
+                              <div>
+                                <div className="font-medium">
+                                  {new Date(pieza.fecha_cambio).toLocaleDateString('es')}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {new Date(pieza.fecha_cambio).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <Printer className="w-4 h-4 text-primary" />
+                              <span className="font-medium">{pieza.impresoras?.nombre}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium">{pieza.nombre_pieza}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {pieza.tipo_pieza.replace('_', ' ')}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {pieza.vida_util_estimada.toLocaleString()} págs
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {pieza.vida_util_real ? `${pieza.vida_util_real.toLocaleString()} págs` : '-'}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {pieza.porcentaje_vida_consumida !== null ? (
+                              <span className={cn(
+                                'font-medium',
+                                pieza.porcentaje_vida_consumida >= 90 ? 'text-destructive' :
+                                pieza.porcentaje_vida_consumida >= 70 ? 'text-warning' : 'text-success'
+                              )}>
+                                {pieza.porcentaje_vida_consumida}%
+                              </span>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                            {pieza.motivo || pieza.observaciones || '-'}
                           </TableCell>
                         </TableRow>
                       ))}
