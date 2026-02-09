@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, History, Loader2, Printer } from 'lucide-react';
+import { Plus, Search, Edit, History, Loader2, Printer, Download } from 'lucide-react';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -107,12 +107,12 @@ export default function Impresoras() {
     setLoading(true);
     
     const [impResp, secResp, filResp] = await Promise.all([
-      supabase.from('impresoras').select('*').order('created_at', { ascending: false }),
+      supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)').order('created_at', { ascending: false }),
       supabase.from('sectores').select('*').eq('activo', true),
       supabase.from('filiales').select('*').eq('activo', true),
     ]);
 
-    if (impResp.data) setImpresoras(impResp.data as Impresora[]);
+    if (impResp.data) setImpresoras(impResp.data as any[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
     
@@ -324,6 +324,31 @@ export default function Impresoras() {
     );
   };
 
+  const exportImpresorasCSV = () => {
+    const data = filteredImpresoras.map(imp => ({
+      Serie: imp.serie,
+      Nombre: imp.nombre,
+      Modelo: imp.modelo,
+      TipoImpresion: imp.tipo_impresion,
+      TipoConsumo: imp.tipo_consumo,
+      Estado: imp.estado,
+      Sector: (imp as any).sectores?.nombre || '-',
+      Filial: (imp as any).filiales?.nombre || '-',
+      ContadorNegro: imp.contador_negro_actual,
+      ContadorColor: imp.contador_color_actual,
+    }));
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
+    const csv = `${headers}\n${rows}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `impresoras_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
+  };
+
   const isAdmin = role === 'admin';
 
   return (
@@ -336,6 +361,11 @@ export default function Impresoras() {
             <p className="text-muted-foreground">Gestión y registro de equipos</p>
           </div>
           
+          <div className="flex gap-2">
+            <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Exportar CSV
+            </Button>
           {isAdmin && (
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
@@ -529,6 +559,7 @@ export default function Impresoras() {
               </DialogContent>
             </Dialog>
           )}
+          </div>
         </div>
 
         {/* Search */}
@@ -574,6 +605,8 @@ export default function Impresoras() {
                       <TableHead>Modelo</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Consumo</TableHead>
+                      <TableHead>Sector</TableHead>
+                      <TableHead>Filial</TableHead>
                       <TableHead>Estado</TableHead>
                       <TableHead>Contadores</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
@@ -587,6 +620,8 @@ export default function Impresoras() {
                         <TableCell>{imp.modelo}</TableCell>
                         <TableCell className="capitalize">{imp.tipo_impresion}</TableCell>
                         <TableCell className="capitalize">{imp.tipo_consumo}</TableCell>
+                        <TableCell className="text-muted-foreground">{(imp as any).sectores?.nombre || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">{(imp as any).filiales?.nombre || '-'}</TableCell>
                         <TableCell>{getStatusBadge(imp.estado)}</TableCell>
                         <TableCell>
                           <div className="text-sm">
