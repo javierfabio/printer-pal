@@ -248,17 +248,8 @@ export default function Auth() {
         </CardHeader>
 
         <CardContent>
-          <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6 bg-muted/50">
-              <TabsTrigger value="login" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                {t.login}
-              </TabsTrigger>
-              <TabsTrigger value="signup" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
-                {t.signup}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="login" className="animate-fade-in">
+          <div className="w-full">
+            <div className="animate-fade-in">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email" className="text-sm font-medium">{t.email}</Label>
@@ -355,127 +346,8 @@ export default function Auth() {
                   {t.loginButton}
                 </Button>
               </form>
-            </TabsContent>
-
-            <TabsContent value="signup" className="animate-fade-in">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name" className="text-sm font-medium">{t.fullName}</Label>
-                  <Input
-                    id="signup-name"
-                    name="fullName"
-                    type="text"
-                    placeholder={t.namePlaceholder}
-                    required
-                    className={cn(
-                      "transition-all duration-200",
-                      errors.fullName && "border-destructive ring-destructive/20 ring-2"
-                    )}
-                  />
-                  {errors.fullName && (
-                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
-                      <AlertCircle className="w-3 h-3" /> {errors.fullName}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email" className="text-sm font-medium">{t.email}</Label>
-                  <Input
-                    id="signup-email"
-                    name="email"
-                    type="email"
-                    placeholder={t.emailPlaceholder}
-                    required
-                    className={cn(
-                      "transition-all duration-200",
-                      errors.email && "border-destructive ring-destructive/20 ring-2"
-                    )}
-                  />
-                  {errors.email && (
-                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
-                      <AlertCircle className="w-3 h-3" /> {errors.email}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password" className="text-sm font-medium">{t.password}</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder={t.passwordPlaceholder}
-                      required
-                      className={cn(
-                        "pr-10 transition-all duration-200",
-                        errors.password && "border-destructive ring-destructive/20 ring-2"
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="w-4 h-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  {errors.password && (
-                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
-                      <AlertCircle className="w-3 h-3" /> {errors.password}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="signup-confirm" className="text-sm font-medium">{t.confirmPassword}</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-confirm"
-                      name="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder={t.passwordPlaceholder}
-                      required
-                      className={cn(
-                        "pr-10 transition-all duration-200",
-                        errors.confirmPassword && "border-destructive ring-destructive/20 ring-2"
-                      )}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="w-4 h-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="w-4 h-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  {errors.confirmPassword && (
-                    <p className="text-sm text-destructive flex items-center gap-1 animate-fade-in" role="alert">
-                      <AlertCircle className="w-3 h-3" /> {errors.confirmPassword}
-                    </p>
-                  )}
-                </div>
-
-                <Button type="submit" className="w-full h-11 font-medium" disabled={loading}>
-                  {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {t.signupButton}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
 
           {/* Security footer */}
           <div className="mt-6 pt-4 border-t border-border/50 flex items-center justify-center gap-2 text-xs text-muted-foreground">
