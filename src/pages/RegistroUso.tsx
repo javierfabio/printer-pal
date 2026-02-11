@@ -42,6 +42,8 @@ interface Impresora {
   contador_color_actual: number;
   contador_negro_inicial: number;
   contador_color_inicial: number;
+  sector_id: string | null;
+  sectores?: { nombre: string } | null;
 }
 
 interface LecturaContador {
@@ -95,6 +97,7 @@ export default function RegistroUso() {
   const [contadorNegro, setContadorNegro] = useState<string>('');
   const [contadorColor, setContadorColor] = useState<string>('');
   const [notas, setNotas] = useState('');
+  const [printerSearch, setPrinterSearch] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -104,7 +107,7 @@ export default function RegistroUso() {
     setLoading(true);
     
     const [impResp, lecResp] = await Promise.all([
-      supabase.from('impresoras').select('*').eq('estado', 'activa').order('nombre'),
+      supabase.from('impresoras').select('*, sectores(nombre)').eq('estado', 'activa').order('nombre'),
       supabase
         .from('lecturas_contadores')
         .select('*, impresoras(nombre, serie, tipo_impresion)')
@@ -112,7 +115,7 @@ export default function RegistroUso() {
         .limit(100),
     ]);
 
-    if (impResp.data) setImpresoras(impResp.data);
+    if (impResp.data) setImpresoras(impResp.data as any[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaContador[]);
     
     setLoading(false);
@@ -137,6 +140,17 @@ export default function RegistroUso() {
     
     fetchPiezas();
   }, [selectedPrinter]);
+
+  const filteredPrinters = useMemo(() => {
+    if (!printerSearch.trim()) return impresoras;
+    const q = printerSearch.toLowerCase();
+    return impresoras.filter(p =>
+      p.nombre.toLowerCase().includes(q) ||
+      p.serie.toLowerCase().includes(q) ||
+      p.modelo.toLowerCase().includes(q) ||
+      (p.sectores?.nombre || '').toLowerCase().includes(q)
+    );
+  }, [impresoras, printerSearch]);
 
   const selectedPrinterData = impresoras.find(p => p.id === selectedPrinter);
 
@@ -287,6 +301,7 @@ export default function RegistroUso() {
     setContadorColor('');
     setNotas('');
     setPiezasPrinter([]);
+    setPrinterSearch('');
   };
 
   // Stats calculations
@@ -338,16 +353,25 @@ export default function RegistroUso() {
                 <form onSubmit={handleSubmit} className="space-y-5 mt-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Seleccionar Impresora *</Label>
+                    <Input
+                      placeholder="Filtrar por serie, modelo o sector..."
+                      value={printerSearch}
+                      onChange={e => setPrinterSearch(e.target.value)}
+                      className="h-10 mb-2"
+                    />
                     <Select value={selectedPrinter} onValueChange={setSelectedPrinter}>
                       <SelectTrigger className="h-11">
-                        <SelectValue placeholder="Buscar impresora..." />
+                        <SelectValue placeholder="Seleccionar impresora..." />
                       </SelectTrigger>
                       <SelectContent className="bg-popover">
-                        {impresoras.map(p => (
+                        {filteredPrinters.length === 0 && (
+                          <div className="px-3 py-2 text-sm text-muted-foreground">Sin resultados</div>
+                        )}
+                        {filteredPrinters.map(p => (
                           <SelectItem key={p.id} value={p.id}>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{p.nombre}</span>
-                              <span className="text-muted-foreground text-xs">({p.serie})</span>
+                              <span className="text-muted-foreground text-xs">({p.serie} · {p.modelo}{p.sectores?.nombre ? ` · ${p.sectores.nombre}` : ''})</span>
                             </div>
                           </SelectItem>
                         ))}
