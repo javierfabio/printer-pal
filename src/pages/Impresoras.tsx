@@ -8,7 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Search, Edit, History, Loader2, Printer, Download } from 'lucide-react';
+import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -349,6 +351,53 @@ export default function Impresoras() {
     toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
   };
 
+  const exportImpresorasPDF = () => {
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Listado de Impresoras', pageWidth / 2, 20, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 28, { align: 'center' });
+    doc.setFontSize(12);
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Total: ${filteredImpresoras.length} impresoras`, 14, 40);
+
+    const tableData = filteredImpresoras.map(imp => [
+      imp.serie,
+      imp.nombre,
+      imp.modelo,
+      imp.tipo_impresion === 'color' ? 'Color' : 'Monocromático',
+      imp.tipo_consumo === 'toner' ? 'Tóner' : 'Tinta',
+      imp.estado,
+      (imp as any).sectores?.nombre || '-',
+      (imp as any).filiales?.nombre || '-',
+      imp.contador_negro_actual?.toLocaleString() ?? '-',
+      imp.contador_color_actual?.toLocaleString() ?? '-',
+    ]);
+
+    autoTable(doc, {
+      startY: 46,
+      head: [['Serie', 'Nombre', 'Modelo', 'Tipo Imp.', 'Consumo', 'Estado', 'Sector', 'Filial', 'Negro', 'Color']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 7 },
+    });
+
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
+
+    doc.save(`impresoras_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast({ title: 'PDF Generado', description: 'El listado ha sido descargado.' });
+  };
+
   const isAdmin = role === 'admin';
 
   return (
@@ -364,7 +413,11 @@ export default function Impresoras() {
           <div className="flex gap-2">
             <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2">
               <Download className="w-4 h-4" />
-              Exportar CSV
+              CSV
+            </Button>
+            <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2">
+              <FileText className="w-4 h-4" />
+              PDF
             </Button>
           {isAdmin && (
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
