@@ -24,8 +24,11 @@ import {
   Clock,
   CheckCircle2,
   Package,
-  Droplets
+  Droplets,
+  Download
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -313,6 +316,72 @@ export default function RegistroUso() {
     new Date(l.fecha_lectura).toDateString() === new Date().toDateString()
   ).length;
 
+  const exportLecturasPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Registro de Uso - Lecturas de Contadores', pageWidth / 2, 20, { align: 'center' });
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 28, { align: 'center' });
+
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Resumen', 14, 42);
+
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Total de Lecturas: ${lecturas.length}`, 14, 50);
+    doc.text(`Impresoras Activas: ${impresoras.length}`, 14, 56);
+    doc.text(`Lecturas Hoy: ${lecturasHoy}`, 14, 62);
+
+    doc.setFontSize(14);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Detalle de Lecturas', 14, 76);
+
+    const tableData = lecturas.map(l => [
+      new Date(l.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' }),
+      new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+      l.impresoras?.nombre || '-',
+      l.impresoras?.serie || '-',
+      l.contador_negro?.toLocaleString() ?? '-',
+      l.contador_color?.toLocaleString() ?? '-',
+      l.notas || '-',
+    ]);
+
+    autoTable(doc, {
+      startY: 82,
+      head: [['Fecha', 'Hora', 'Impresora', 'Serie', 'Negro', 'Color', 'Notas']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 22 },
+        1: { cellWidth: 16 },
+        2: { cellWidth: 32 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 20, halign: 'right' },
+        5: { cellWidth: 20, halign: 'right' },
+        6: { cellWidth: 40 },
+      },
+    });
+
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
+
+    doc.save(`registro_uso_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast({ title: 'PDF Generado', description: 'El registro de uso ha sido descargado.' });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -331,9 +400,9 @@ export default function RegistroUso() {
           </div>
           
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2" disabled>
-              <Upload className="w-4 h-4" />
-              Carga Masiva (CSV)
+            <Button variant="outline" className="gap-2" onClick={exportLecturasPDF}>
+              <Download className="w-4 h-4" />
+              Exportar PDF
             </Button>
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
