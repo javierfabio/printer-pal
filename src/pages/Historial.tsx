@@ -20,6 +20,8 @@ import {
   FileText,
   Wrench
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -193,6 +195,68 @@ export default function Historial() {
     toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
   };
 
+  const exportToPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const tabLabels: Record<string, string> = { lecturas: 'Lecturas de Contadores', cambios: 'Cambios de Configuración', piezas: 'Reemplazo de Piezas' };
+    
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Historial y Auditoría', pageWidth / 2, 20, { align: 'center' });
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    doc.text(tabLabels[activeTab] || '', pageWidth / 2, 28, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 35, { align: 'center' });
+
+    let head: string[][] = [];
+    let body: string[][] = [];
+
+    if (activeTab === 'lecturas') {
+      head = [['Fecha', 'Impresora', 'Serie', 'Negro', 'Color', 'Notas']];
+      body = filteredLecturas.map(l => [
+        new Date(l.fecha_lectura).toLocaleString('es'),
+        l.impresoras?.nombre || '-', l.impresoras?.serie || '-',
+        l.contador_negro?.toLocaleString() ?? '-', l.contador_color?.toLocaleString() ?? '-',
+        l.notas || '-',
+      ]);
+    } else if (activeTab === 'cambios') {
+      head = [['Fecha', 'Impresora', 'Campo', 'Anterior', 'Nuevo', 'Motivo']];
+      body = filteredHistorial.map(h => [
+        new Date(h.created_at).toLocaleString('es'),
+        h.impresoras?.nombre || '-', h.campo_modificado,
+        h.valor_anterior || '-', h.valor_nuevo || '-', h.motivo || '-',
+      ]);
+    } else {
+      head = [['Fecha', 'Impresora', 'Pieza', 'Tipo', 'Vida Estimada', 'Vida Real', '% Consumo', 'Motivo']];
+      body = filteredPiezas.map(p => [
+        new Date(p.fecha_cambio).toLocaleString('es'),
+        p.impresoras?.nombre || '-', p.nombre_pieza, p.tipo_pieza,
+        p.vida_util_estimada.toLocaleString(), (p.vida_util_real || 0).toLocaleString(),
+        p.porcentaje_vida_consumida ? `${p.porcentaje_vida_consumida}%` : '-', p.motivo || '-',
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: 42,
+      head, body,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 7 },
+    });
+
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
+
+    doc.save(`historial_${activeTab}_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast({ title: 'PDF Generado', description: 'El historial ha sido descargado.' });
+  };
+
   const clearFilters = () => {
     setFilterPrinter('all');
     setFilterDateFrom('');
@@ -216,10 +280,16 @@ export default function Historial() {
               Registro detallado de lecturas y cambios en el sistema
             </p>
           </div>
-          <Button onClick={exportToCSV} variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Exportar CSV
-          </Button>
+          <div className="flex gap-2">
+            <Button onClick={exportToCSV} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              CSV
+            </Button>
+            <Button onClick={exportToPDF} variant="outline" className="gap-2">
+              <FileText className="w-4 h-4" />
+              PDF
+            </Button>
+          </div>
         </div>
 
         {/* Tab selector */}

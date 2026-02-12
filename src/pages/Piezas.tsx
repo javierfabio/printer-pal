@@ -21,8 +21,12 @@ import {
   History,
   Settings,
   Printer,
-  Pencil
+  Pencil,
+  Download,
+  FileText
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -348,6 +352,81 @@ export default function Piezas() {
     return status !== 'ok';
   });
 
+  const exportPiezasCSV = () => {
+    const data = piezas.map(p => {
+      const pct = p.vida_util_estimada > 0 ? Math.min(100, (p.paginas_consumidas / p.vida_util_estimada) * 100) : 0;
+      return {
+        Impresora: p.impresoras?.nombre || '',
+        Serie: p.impresoras?.serie || '',
+        Pieza: p.nombre_pieza,
+        Tipo: TIPO_PIEZA_LABELS[p.tipo_pieza],
+        VidaUtil: p.vida_util_estimada,
+        Consumidas: p.paginas_consumidas,
+        PorcentajeUso: `${pct.toFixed(1)}%`,
+        FechaInstalacion: new Date(p.fecha_instalacion).toLocaleDateString('es'),
+        Notas: p.notas || '',
+      };
+    });
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
+    const csv = `${headers}\n${rows}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `piezas_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
+  };
+
+  const exportPiezasPDF = () => {
+    const doc = new jsPDF('landscape');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    doc.setFontSize(20);
+    doc.setTextColor(40, 40, 40);
+    doc.text('Gestión de Piezas', pageWidth / 2, 20, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 28, { align: 'center' });
+    doc.setFontSize(12);
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Total: ${piezas.length} piezas activas`, 14, 40);
+
+    const tableData = piezas.map(p => {
+      const pct = p.vida_util_estimada > 0 ? Math.min(100, (p.paginas_consumidas / p.vida_util_estimada) * 100) : 0;
+      return [
+        p.impresoras?.nombre || '-',
+        p.impresoras?.serie || '-',
+        p.nombre_pieza,
+        TIPO_PIEZA_LABELS[p.tipo_pieza],
+        p.vida_util_estimada.toLocaleString(),
+        p.paginas_consumidas.toLocaleString(),
+        `${pct.toFixed(1)}%`,
+        new Date(p.fecha_instalacion).toLocaleDateString('es'),
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 46,
+      head: [['Impresora', 'Serie', 'Pieza', 'Tipo', 'Vida Útil', 'Consumidas', '% Uso', 'Instalación']],
+      body: tableData,
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 7 },
+    });
+
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
+    }
+
+    doc.save(`piezas_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast({ title: 'PDF Generado', description: 'El listado de piezas ha sido descargado.' });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -365,13 +444,22 @@ export default function Piezas() {
             </p>
           </div>
           
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="gap-2">
-                <Plus className="w-4 h-4" />
-                Instalar Pieza
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button onClick={() => exportPiezasCSV()} variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              CSV
+            </Button>
+            <Button onClick={() => exportPiezasPDF()} variant="outline" className="gap-2">
+              <FileText className="w-4 h-4" />
+              PDF
+            </Button>
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="gap-2">
+                  <Plus className="w-4 h-4" />
+                  Instalar Pieza
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -464,6 +552,7 @@ export default function Piezas() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Alerts */}

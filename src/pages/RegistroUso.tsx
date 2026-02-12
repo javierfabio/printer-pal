@@ -382,6 +382,28 @@ export default function RegistroUso() {
     toast({ title: 'PDF Generado', description: 'El registro de uso ha sido descargado.' });
   };
 
+  const exportLecturasCSV = () => {
+    const data = lecturas.map(l => ({
+      Fecha: new Date(l.fecha_lectura).toLocaleDateString('es'),
+      Hora: new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+      Impresora: l.impresoras?.nombre || '',
+      Serie: l.impresoras?.serie || '',
+      ContadorNegro: l.contador_negro ?? '',
+      ContadorColor: l.contador_color ?? '',
+      Notas: l.notas || '',
+    }));
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]).join(',');
+    const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
+    const csv = `${headers}\n${rows}`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `registro_uso_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -400,9 +422,13 @@ export default function RegistroUso() {
           </div>
           
           <div className="flex gap-2">
-            <Button variant="outline" className="gap-2" onClick={exportLecturasPDF}>
+            <Button variant="outline" className="gap-2" onClick={exportLecturasCSV}>
               <Download className="w-4 h-4" />
-              Exportar PDF
+              CSV
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={exportLecturasPDF}>
+              <FileText className="w-4 h-4" />
+              PDF
             </Button>
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild>
