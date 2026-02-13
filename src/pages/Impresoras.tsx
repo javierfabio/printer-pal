@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -353,16 +354,7 @@ export default function Impresoras() {
 
   const exportImpresorasPDF = () => {
     const doc = new jsPDF('landscape');
-    const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Listado de Impresoras', pageWidth / 2, 20, { align: 'center' });
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 28, { align: 'center' });
-    doc.setFontSize(12);
-    doc.setTextColor(40, 40, 40);
-    doc.text(`Total: ${filteredImpresoras.length} impresoras`, 14, 40);
+    const startY = addPDFHeader(doc, 'Listado de Impresoras', `Total: ${filteredImpresoras.length} impresoras`);
 
     const tableData = filteredImpresoras.map(imp => [
       imp.serie,
@@ -378,7 +370,7 @@ export default function Impresoras() {
     ]);
 
     autoTable(doc, {
-      startY: 46,
+      startY,
       head: [['Serie', 'Nombre', 'Modelo', 'Tipo Imp.', 'Consumo', 'Estado', 'Sector', 'Filial', 'Negro', 'Color']],
       body: tableData,
       theme: 'striped',
@@ -386,14 +378,7 @@ export default function Impresoras() {
       styles: { fontSize: 7 },
     });
 
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    }
-
+    addPDFPageNumbers(doc);
     doc.save(`impresoras_${new Date().toISOString().split('T')[0]}.pdf`);
     toast({ title: 'PDF Generado', description: 'El listado ha sido descargado.' });
   };

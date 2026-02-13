@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -197,17 +198,8 @@ export default function Historial() {
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
     const tabLabels: Record<string, string> = { lecturas: 'Lecturas de Contadores', cambios: 'Cambios de Configuración', piezas: 'Reemplazo de Piezas' };
-    
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Historial y Auditoría', pageWidth / 2, 20, { align: 'center' });
-    doc.setFontSize(12);
-    doc.setTextColor(100, 100, 100);
-    doc.text(tabLabels[activeTab] || '', pageWidth / 2, 28, { align: 'center' });
-    doc.setFontSize(10);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 35, { align: 'center' });
+    const startY = addPDFHeader(doc, 'Historial y Auditoría', tabLabels[activeTab]);
 
     let head: string[][] = [];
     let body: string[][] = [];
@@ -238,21 +230,13 @@ export default function Historial() {
     }
 
     autoTable(doc, {
-      startY: 42,
-      head, body,
+      startY, head, body,
       theme: 'striped',
       headStyles: { fillColor: [59, 130, 246], textColor: 255 },
       styles: { fontSize: 7 },
     });
 
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    }
-
+    addPDFPageNumbers(doc);
     doc.save(`historial_${activeTab}_${new Date().toISOString().split('T')[0]}.pdf`);
     toast({ title: 'PDF Generado', description: 'El historial ha sido descargado.' });
   };

@@ -339,9 +339,12 @@ export default function Dashboard() {
                         className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
                             <span className="text-sm font-bold text-muted-foreground">#{index + 1}</span>
-                            <span className="font-medium truncate max-w-[150px]">{printer.nombre}</span>
+                            <div className="min-w-0">
+                              <span className="font-medium truncate block max-w-[180px]">{printer.nombre}</span>
+                              <span className="text-xs text-muted-foreground truncate block max-w-[180px]">{printer.modelo}</span>
+                            </div>
                           </div>
                           <Badge variant="outline">{totalPages.toLocaleString()} págs</Badge>
                         </div>

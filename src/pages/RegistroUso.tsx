@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -318,29 +319,13 @@ export default function RegistroUso() {
 
   const exportLecturasPDF = () => {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Registro de Uso - Lecturas de Contadores', pageWidth / 2, 20, { align: 'center' });
-
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, pageWidth / 2, 28, { align: 'center' });
-
-    doc.setFontSize(14);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Resumen', 14, 42);
+    const startY = addPDFHeader(doc, 'Registro de Uso', 'Lecturas de Contadores');
 
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Total de Lecturas: ${lecturas.length}`, 14, 50);
-    doc.text(`Impresoras Activas: ${impresoras.length}`, 14, 56);
-    doc.text(`Lecturas Hoy: ${lecturasHoy}`, 14, 62);
-
-    doc.setFontSize(14);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Detalle de Lecturas', 14, 76);
+    doc.text(`Total de Lecturas: ${lecturas.length}`, 14, startY);
+    doc.text(`Impresoras Activas: ${impresoras.length}`, 14, startY + 6);
+    doc.text(`Lecturas Hoy: ${lecturasHoy}`, 14, startY + 12);
 
     const tableData = lecturas.map(l => [
       new Date(l.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' }),
@@ -353,7 +338,7 @@ export default function RegistroUso() {
     ]);
 
     autoTable(doc, {
-      startY: 82,
+      startY: startY + 18,
       head: [['Fecha', 'Hora', 'Impresora', 'Serie', 'Negro', 'Color', 'Notas']],
       body: tableData,
       theme: 'striped',
@@ -370,14 +355,7 @@ export default function RegistroUso() {
       },
     });
 
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    }
-
+    addPDFPageNumbers(doc);
     doc.save(`registro_uso_${new Date().toISOString().split('T')[0]}.pdf`);
     toast({ title: 'PDF Generado', description: 'El registro de uso ha sido descargado.' });
   };
