@@ -24,6 +24,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 
 interface Impresora {
   id: string;
@@ -174,40 +175,25 @@ export default function Informes() {
 
   const exportToPDF = () => {
     const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Header
-    doc.setFontSize(20);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Informe de Consumo de Impresoras', pageWidth / 2, 20, { align: 'center' });
-    
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generado: ${new Date().toLocaleDateString('es', { 
-      day: '2-digit', 
-      month: 'long', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`, pageWidth / 2, 28, { align: 'center' });
+    const startY = addPDFHeader(doc, 'Informe de Consumo de Impresoras');
 
     // Summary section
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setTextColor(40, 40, 40);
-    doc.text('Resumen General', 14, 42);
+    doc.text('Resumen General', 14, startY);
     
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Total de Impresoras: ${filteredImpresoras.length}`, 14, 50);
-    doc.text(`Total de Páginas: ${totalPaginas.toLocaleString()}`, 14, 56);
-    doc.text(`Páginas B/N: ${totalPaginasNegro.toLocaleString()}`, 14, 62);
-    doc.text(`Páginas Color: ${totalPaginasColor.toLocaleString()}`, 14, 68);
-    doc.text(`Promedio por Impresora: ${filteredImpresoras.length > 0 ? Math.round(totalPaginas / filteredImpresoras.length).toLocaleString() : 0}`, 14, 74);
+    doc.text(`Total de Impresoras: ${filteredImpresoras.length}`, 14, startY + 8);
+    doc.text(`Total de Páginas: ${totalPaginas.toLocaleString()}`, 14, startY + 14);
+    doc.text(`Páginas B/N: ${totalPaginasNegro.toLocaleString()}`, 14, startY + 20);
+    doc.text(`Páginas Color: ${totalPaginasColor.toLocaleString()}`, 14, startY + 26);
+    doc.text(`Promedio por Impresora: ${filteredImpresoras.length > 0 ? Math.round(totalPaginas / filteredImpresoras.length).toLocaleString() : 0}`, 14, startY + 32);
 
     // Printers table
-    doc.setFontSize(14);
+    doc.setFontSize(12);
     doc.setTextColor(40, 40, 40);
-    doc.text('Detalle por Impresora', 14, 88);
+    doc.text('Detalle por Impresora', 14, startY + 44);
 
     const printerTableData = filteredImpresoras
       .sort((a, b) => {
@@ -225,7 +211,7 @@ export default function Informes() {
       ]);
 
     autoTable(doc, {
-      startY: 94,
+      startY: startY + 50,
       head: [['Nombre', 'Modelo', 'Serie', 'Pág. B/N', 'Pág. Color', 'Total']],
       body: printerTableData,
       theme: 'striped',
@@ -243,16 +229,13 @@ export default function Informes() {
 
     // Parts section on new page
     doc.addPage();
-    
-    doc.setFontSize(14);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Estado de Piezas', 14, 20);
+    const partsY = addPDFHeader(doc, 'Estado de Piezas');
     
     doc.setFontSize(10);
     doc.setTextColor(60, 60, 60);
-    doc.text(`Total de Piezas Activas: ${piezas.length}`, 14, 28);
-    doc.text(`Piezas con Alerta (>70%): ${piezas.filter(p => p.porcentaje_usado >= 70).length}`, 14, 34);
-    doc.text(`Piezas Críticas (>90%): ${piezas.filter(p => p.porcentaje_usado >= 90).length}`, 14, 40);
+    doc.text(`Total de Piezas Activas: ${piezas.length}`, 14, partsY);
+    doc.text(`Piezas con Alerta (>70%): ${piezas.filter(p => p.porcentaje_usado >= 70).length}`, 14, partsY + 6);
+    doc.text(`Piezas Críticas (>90%): ${piezas.filter(p => p.porcentaje_usado >= 90).length}`, 14, partsY + 12);
 
     const piezasTableData = piezas
       .sort((a, b) => b.porcentaje_usado - a.porcentaje_usado)
@@ -266,7 +249,7 @@ export default function Informes() {
       ]);
 
     autoTable(doc, {
-      startY: 48,
+      startY: partsY + 18,
       head: [['Tipo', 'Nombre', 'Impresora', 'Vida Útil', '% Usado', 'Estado']],
       body: piezasTableData,
       theme: 'striped',
@@ -296,17 +279,8 @@ export default function Informes() {
       },
     });
 
-    // Footer
-    const pageCount = doc.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${i} de ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: 'center' });
-    }
-    
+    addPDFPageNumbers(doc);
     doc.save(`informe_consumo_${new Date().toISOString().split('T')[0]}.pdf`);
-    
     toast({ title: 'PDF Generado', description: 'El informe ha sido descargado correctamente.' });
   };
 

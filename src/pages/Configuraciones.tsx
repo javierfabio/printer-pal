@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building, Loader2, MapPin, Plus, Shield } from 'lucide-react';
+import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { getCorporateLogo, saveCorporateLogo, removeCorporateLogo } from '@/lib/pdfHeader';
 
 interface Sector {
   id: string;
@@ -41,6 +42,32 @@ export default function Configuraciones() {
   const [newFilialDir, setNewFilialDir] = useState('');
 
   const isAdmin = role === 'admin';
+  const [logoPreview, setLogoPreview] = useState<string | null>(getCorporateLogo());
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 500 * 1024) {
+      toast({ variant: 'destructive', title: 'Error', description: 'El logo no debe superar 500KB.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = reader.result as string;
+      saveCorporateLogo(base64);
+      setLogoPreview(base64);
+      toast({ title: 'Logo actualizado', description: 'Se usará en todas las exportaciones PDF.' });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveLogo = () => {
+    removeCorporateLogo();
+    setLogoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    toast({ title: 'Logo eliminado', description: 'Los PDFs se generarán sin logo.' });
+  };
 
   useEffect(() => {
     fetchData();
@@ -140,9 +167,67 @@ export default function Configuraciones() {
             Configuraciones
           </h1>
           <p className="text-muted-foreground mt-1">
-            Administración de sectores y filiales
+            Administración de sectores, filiales y personalización
           </p>
         </div>
+
+        {/* Logo Corporativo */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5" />
+              Logo Corporativo
+            </CardTitle>
+            <CardDescription>
+              Este logo aparecerá en el encabezado de todos los documentos PDF exportados
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div className="w-24 h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden shrink-0">
+                {logoPreview ? (
+                  <img src={logoPreview} alt="Logo corporativo" className="w-full h-full object-contain p-1" />
+                ) : (
+                  <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                )}
+              </div>
+              <div className="space-y-3">
+                <p className="text-sm text-muted-foreground">
+                  Formatos: PNG, JPG. Máximo 500KB. Recomendado: fondo transparente.
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <Upload className="w-4 h-4" />
+                    {logoPreview ? 'Cambiar Logo' : 'Subir Logo'}
+                  </Button>
+                  {logoPreview && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 text-destructive hover:text-destructive"
+                      onClick={handleRemoveLogo}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Eliminar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Sectores */}
