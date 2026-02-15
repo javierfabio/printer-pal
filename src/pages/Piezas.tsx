@@ -122,7 +122,17 @@ export default function Piezas() {
   // Edit dialogs
   const [editPiezaDialogOpen, setEditPiezaDialogOpen] = useState(false);
   const [editConfigDialogOpen, setEditConfigDialogOpen] = useState(false);
+  const [addConfigDialogOpen, setAddConfigDialogOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<ConfiguracionPieza | null>(null);
+
+  // Form state for new config
+  const [newConfigData, setNewConfigData] = useState({
+    tipo_pieza: '' as TipoPieza | '',
+    nombre_display: '',
+    vida_util_default: 10000,
+    umbral_advertencia: 70,
+    umbral_critico: 90,
+  });
 
   // Form state for new part
   const [printerSearch, setPrinterSearch] = useState('');
@@ -848,10 +858,91 @@ export default function Piezas() {
             <TabsContent value="configuracion">
               <Card>
                 <CardHeader>
-                  <CardTitle>Configuración de Piezas</CardTitle>
-                  <CardDescription>
-                    Valores predeterminados y umbrales de alerta
-                  </CardDescription>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle>Configuración de Piezas</CardTitle>
+                      <CardDescription>
+                        Valores predeterminados y umbrales de alerta
+                      </CardDescription>
+                    </div>
+                    <Dialog open={addConfigDialogOpen} onOpenChange={setAddConfigDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm" className="gap-1">
+                          <Plus className="w-4 h-4" />
+                          Añadir
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Settings className="w-5 h-5 text-primary" />
+                            Nueva Configuración de Pieza
+                          </DialogTitle>
+                        </DialogHeader>
+                        <form onSubmit={async (e) => {
+                          e.preventDefault();
+                          if (!newConfigData.tipo_pieza || !newConfigData.nombre_display) return;
+                          setSaving(true);
+                          const { error } = await supabase.from('configuracion_piezas').insert({
+                            tipo_pieza: newConfigData.tipo_pieza as TipoPieza,
+                            nombre_display: newConfigData.nombre_display,
+                            vida_util_default: newConfigData.vida_util_default,
+                            umbral_advertencia: newConfigData.umbral_advertencia,
+                            umbral_critico: newConfigData.umbral_critico,
+                          });
+                          if (error) {
+                            toast({ variant: 'destructive', title: 'Error', description: error.message });
+                          } else {
+                            toast({ title: 'Éxito', description: 'Configuración creada' });
+                            setAddConfigDialogOpen(false);
+                            setNewConfigData({ tipo_pieza: '', nombre_display: '', vida_util_default: 10000, umbral_advertencia: 70, umbral_critico: 90 });
+                            fetchData();
+                          }
+                          setSaving(false);
+                        }} className="space-y-4 mt-4">
+                          <div className="space-y-2">
+                            <Label>Tipo de Pieza *</Label>
+                            <Select value={newConfigData.tipo_pieza} onValueChange={(v) => {
+                              setNewConfigData({ ...newConfigData, tipo_pieza: v as TipoPieza, nombre_display: TIPO_PIEZA_LABELS[v as TipoPieza] || '' });
+                            }}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Seleccionar tipo..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover">
+                                {Object.entries(TIPO_PIEZA_LABELS).map(([key, label]) => (
+                                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Nombre para Mostrar *</Label>
+                            <Input value={newConfigData.nombre_display} onChange={e => setNewConfigData({ ...newConfigData, nombre_display: e.target.value })} placeholder="Ej: Tóner Negro HP" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Vida Útil por Defecto (páginas)</Label>
+                            <Input type="number" min={1} value={newConfigData.vida_util_default} onChange={e => setNewConfigData({ ...newConfigData, vida_util_default: parseInt(e.target.value) || 0 })} />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <Label>Umbral Advertencia (%)</Label>
+                              <Input type="number" min={1} max={100} value={newConfigData.umbral_advertencia} onChange={e => setNewConfigData({ ...newConfigData, umbral_advertencia: parseInt(e.target.value) || 70 })} />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Umbral Crítico (%)</Label>
+                              <Input type="number" min={1} max={100} value={newConfigData.umbral_critico} onChange={e => setNewConfigData({ ...newConfigData, umbral_critico: parseInt(e.target.value) || 90 })} />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-4">
+                            <Button type="button" variant="outline" onClick={() => setAddConfigDialogOpen(false)}>Cancelar</Button>
+                            <Button type="submit" disabled={saving}>
+                              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Crear Configuración'}
+                            </Button>
+                          </div>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="overflow-x-auto">
