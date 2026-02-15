@@ -125,6 +125,7 @@ export default function Piezas() {
   const [selectedConfig, setSelectedConfig] = useState<ConfiguracionPieza | null>(null);
 
   // Form state for new part
+  const [printerSearch, setPrinterSearch] = useState('');
   const [formData, setFormData] = useState({
     impresora_id: '',
     tipo_pieza: '' as TipoPieza | '',
@@ -132,6 +133,12 @@ export default function Piezas() {
     vida_util_estimada: 0,
     contador_instalacion: 0,
     notas: '',
+  });
+
+  const filteredImpresoras = impresoras.filter(imp => {
+    if (!printerSearch.trim()) return true;
+    const q = printerSearch.toLowerCase();
+    return imp.nombre.toLowerCase().includes(q) || imp.serie.toLowerCase().includes(q) || imp.modelo.toLowerCase().includes(q);
   });
 
   // Form state for part change
@@ -179,6 +186,7 @@ export default function Piezas() {
   };
 
   const resetForm = () => {
+    setPrinterSearch('');
     setFormData({
       impresora_id: '',
       tipo_pieza: '',
@@ -456,14 +464,20 @@ export default function Piezas() {
               <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                 <div className="space-y-2">
                   <Label>Impresora *</Label>
+                  <Input
+                    placeholder="Buscar por nombre, serie o modelo..."
+                    value={printerSearch}
+                    onChange={e => setPrinterSearch(e.target.value)}
+                    className="mb-2"
+                  />
                   <Select value={formData.impresora_id} onValueChange={handleImpresoraChange}>
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar impresora..." />
                     </SelectTrigger>
                     <SelectContent className="bg-popover">
-                      {impresoras.map(imp => (
+                      {filteredImpresoras.map(imp => (
                         <SelectItem key={imp.id} value={imp.id}>
-                          {imp.nombre} ({imp.serie})
+                          {imp.nombre} - {imp.modelo} ({imp.serie})
                         </SelectItem>
                       ))}
                     </SelectContent>

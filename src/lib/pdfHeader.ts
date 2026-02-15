@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 
 const LOGO_STORAGE_KEY = 'corporate_logo_base64';
+const COMPANY_NAME_KEY = 'corporate_company_name';
 
 export function saveCorporateLogo(base64: string) {
   localStorage.setItem(LOGO_STORAGE_KEY, base64);
@@ -14,6 +15,18 @@ export function removeCorporateLogo() {
   localStorage.removeItem(LOGO_STORAGE_KEY);
 }
 
+export function saveCorporateName(name: string) {
+  localStorage.setItem(COMPANY_NAME_KEY, name);
+}
+
+export function getCorporateName(): string | null {
+  return localStorage.getItem(COMPANY_NAME_KEY);
+}
+
+export function removeCorporateName() {
+  localStorage.removeItem(COMPANY_NAME_KEY);
+}
+
 /**
  * Adds a unified corporate header to a jsPDF document.
  * Returns the Y position after the header so content can start below it.
@@ -21,20 +34,29 @@ export function removeCorporateLogo() {
 export function addPDFHeader(doc: jsPDF, title: string, subtitle?: string): number {
   const pageWidth = doc.internal.pageSize.getWidth();
   const logo = getCorporateLogo();
+  const companyName = getCorporateName();
   let currentY = 14;
 
   if (logo) {
     try {
-      // Add logo on the left (max 30x30)
       doc.addImage(logo, 'PNG', 14, 10, 28, 28);
-      currentY = 18;
+      currentY = 16;
     } catch {
       // If logo fails, just skip it
     }
   }
 
-  // Title
   const titleX = logo ? 48 : 14;
+
+  // Company name
+  if (companyName) {
+    doc.setFontSize(10);
+    doc.setTextColor(80, 80, 80);
+    doc.text(companyName, titleX, currentY);
+    currentY += 6;
+  }
+
+  // Title
   doc.setFontSize(18);
   doc.setTextColor(40, 40, 40);
   doc.text(title, titleX, currentY);

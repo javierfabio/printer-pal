@@ -10,7 +10,7 @@ import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { getCorporateLogo, saveCorporateLogo, removeCorporateLogo } from '@/lib/pdfHeader';
+import { getCorporateLogo, saveCorporateLogo, removeCorporateLogo, getCorporateName, saveCorporateName } from '@/lib/pdfHeader';
 
 interface Sector {
   id: string;
@@ -43,6 +43,7 @@ export default function Configuraciones() {
 
   const isAdmin = role === 'admin';
   const [logoPreview, setLogoPreview] = useState<string | null>(getCorporateLogo());
+  const [companyName, setCompanyName] = useState(getCorporateName() || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,6 +226,39 @@ export default function Configuraciones() {
                   )}
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Nombre de Empresa */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building className="w-5 h-5" />
+              Nombre de Empresa
+            </CardTitle>
+            <CardDescription>
+              Este nombre aparecerá en el encabezado de todos los documentos PDF exportados
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1 space-y-2">
+                <Label>Nombre</Label>
+                <Input
+                  value={companyName}
+                  onChange={e => setCompanyName(e.target.value)}
+                  placeholder="Ej: Mi Empresa S.A."
+                />
+              </div>
+              <Button
+                onClick={() => {
+                  saveCorporateName(companyName.trim());
+                  toast({ title: 'Guardado', description: 'El nombre de empresa se usará en los PDFs.' });
+                }}
+              >
+                Guardar
+              </Button>
             </div>
           </CardContent>
         </Card>
