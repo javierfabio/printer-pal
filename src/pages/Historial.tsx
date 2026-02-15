@@ -83,7 +83,8 @@ export default function Historial() {
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
   const [piezas, setPiezas] = useState<PiezaHistorial[]>([]);
   const [lecturas, setLecturas] = useState<LecturaHistorial[]>([]);
-  const [impresoras, setImpresoras] = useState<{ id: string; nombre: string; serie: string }[]>([]);
+  const [impresoras, setImpresoras] = useState<{ id: string; nombre: string; serie: string; modelo: string }[]>([]);
+  const [printerFilterSearch, setPrinterFilterSearch] = useState('');
   
   // Filters
   const [filterPrinter, setFilterPrinter] = useState<string>('all');
@@ -115,7 +116,7 @@ export default function Historial() {
         .select('*, impresoras(nombre, serie)')
         .order('fecha_cambio', { ascending: false })
         .limit(200),
-      supabase.from('impresoras').select('id, nombre, serie').order('nombre'),
+      supabase.from('impresoras').select('id, nombre, serie, modelo').order('nombre'),
     ]);
 
     if (histResp.data) setHistorial(histResp.data as HistorialItem[]);
@@ -246,6 +247,7 @@ export default function Historial() {
     setFilterDateFrom('');
     setFilterDateTo('');
     setSearchTerm('');
+    setPrinterFilterSearch('');
   };
 
   return (
@@ -332,15 +334,27 @@ export default function Historial() {
               
               <div className="space-y-2">
                 <Label className="text-sm">Impresora</Label>
+                <Input
+                  placeholder="Filtrar por nombre, serie o modelo..."
+                  value={printerFilterSearch}
+                  onChange={e => setPrinterFilterSearch(e.target.value)}
+                  className="mb-2"
+                />
                 <Select value={filterPrinter} onValueChange={setFilterPrinter}>
                   <SelectTrigger>
                     <SelectValue placeholder="Todas" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover">
                     <SelectItem value="all">Todas las impresoras</SelectItem>
-                    {impresoras.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.nombre}</SelectItem>
-                    ))}
+                    {impresoras
+                      .filter(p => {
+                        if (!printerFilterSearch.trim()) return true;
+                        const q = printerFilterSearch.toLowerCase();
+                        return p.nombre.toLowerCase().includes(q) || p.serie.toLowerCase().includes(q) || p.modelo.toLowerCase().includes(q);
+                      })
+                      .map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.nombre} - {p.modelo} ({p.serie})</SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
