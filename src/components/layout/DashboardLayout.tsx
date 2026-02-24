@@ -1,8 +1,10 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import { ReactNode, useEffect, useRef, useCallback } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { PartsAlertBanner } from '@/components/alerts/PartsAlertBanner';
 import { usePartsAlerts } from '@/hooks/usePartsAlerts';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -10,8 +12,20 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { toast } = useToast();
+  const { signOut } = useAuth();
   const { criticalAlerts, warningAlerts, loading } = usePartsAlerts();
   const hasShownToast = useRef(false);
+
+  const handleInactivityTimeout = useCallback(() => {
+    toast({
+      variant: 'destructive',
+      title: 'Sesión expirada',
+      description: 'Se cerró la sesión por inactividad.',
+    });
+    signOut();
+  }, [signOut, toast]);
+
+  useInactivityTimeout(handleInactivityTimeout);
 
   // Show toast notification once on first load
   useEffect(() => {

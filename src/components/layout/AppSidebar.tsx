@@ -30,7 +30,7 @@ export function AppSidebar() {
   const { signOut, user, role } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   const isAdmin = role === 'admin';
 
