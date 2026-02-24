@@ -18,7 +18,9 @@ import {
   ArrowRight,
   Loader2,
   FileText,
-  Wrench
+  Wrench,
+  XCircle,
+  ArrowUpDown
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -36,14 +38,7 @@ interface HistorialItem {
   motivo: string | null;
   impresora_id: string;
   usuario_id: string;
-  impresoras?: {
-    nombre: string;
-    serie: string;
-  };
-  profiles?: {
-    full_name: string | null;
-    email: string;
-  };
+  impresoras?: { nombre: string; serie: string };
 }
 
 interface LecturaHistorial {
@@ -53,10 +48,8 @@ interface LecturaHistorial {
   contador_color: number | null;
   notas: string | null;
   impresora_id: string;
-  impresoras?: {
-    nombre: string;
-    serie: string;
-  };
+  registrado_por: string;
+  impresoras?: { nombre: string; serie: string };
 }
 
 interface PiezaHistorial {
@@ -71,11 +64,27 @@ interface PiezaHistorial {
   motivo: string | null;
   observaciones: string | null;
   impresora_id: string;
-  impresoras?: {
-    nombre: string;
-    serie: string;
-  };
+  tecnico_id: string | null;
+  impresoras?: { nombre: string; serie: string };
 }
+
+interface Profile {
+  id: string;
+  full_name: string | null;
+  email: string;
+}
+
+interface PrinterFull {
+  id: string;
+  nombre: string;
+  serie: string;
+  modelo: string;
+  sector_id: string | null;
+  filial_id: string | null;
+}
+
+interface Sector { id: string; nombre: string; }
+interface Filial { id: string; nombre: string; }
 
 export default function Historial() {
   const { toast } = useToast();
@@ -83,73 +92,108 @@ export default function Historial() {
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
   const [piezas, setPiezas] = useState<PiezaHistorial[]>([]);
   const [lecturas, setLecturas] = useState<LecturaHistorial[]>([]);
-  const [impresoras, setImpresoras] = useState<{ id: string; nombre: string; serie: string; modelo: string }[]>([]);
+  const [impresoras, setImpresoras] = useState<PrinterFull[]>([]);
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [sectores, setSectores] = useState<Sector[]>([]);
+  const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printerFilterSearch, setPrinterFilterSearch] = useState('');
   
   // Filters
   const [filterPrinter, setFilterPrinter] = useState<string>('all');
+  const [filterSector, setFilterSector] = useState<string>('all');
+  const [filterFilial, setFilterFilial] = useState<string>('all');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas'>('lecturas');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
     
-    const [histResp, lecResp, piezasResp, impResp] = await Promise.all([
-      supabase
-        .from('historial_cambios')
-        .select('*, impresoras(nombre, serie)')
-        .order('created_at', { ascending: false })
-        .limit(200),
-      supabase
-        .from('lecturas_contadores')
-        .select('*, impresoras(nombre, serie)')
-        .order('fecha_lectura', { ascending: false })
-        .limit(200),
-      supabase
-        .from('historial_piezas')
-        .select('*, impresoras(nombre, serie)')
-        .order('fecha_cambio', { ascending: false })
-        .limit(200),
-      supabase.from('impresoras').select('id, nombre, serie, modelo').order('nombre'),
+    const [histResp, lecResp, piezasResp, impResp, profResp, secResp, filResp] = await Promise.all([
+      supabase.from('historial_cambios').select('*, impresoras(nombre, serie)').order('created_at', { ascending: false }).limit(500),
+      supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie)').order('fecha_lectura', { ascending: false }).limit(500),
+      supabase.from('historial_piezas').select('*, impresoras(nombre, serie)').order('fecha_cambio', { ascending: false }).limit(500),
+      supabase.from('impresoras').select('id, nombre, serie, modelo, sector_id, filial_id').order('nombre'),
+      supabase.from('profiles').select('id, full_name, email'),
+      supabase.from('sectores').select('id, nombre').eq('activo', true),
+      supabase.from('filiales').select('id, nombre').eq('activo', true),
     ]);
 
     if (histResp.data) setHistorial(histResp.data as HistorialItem[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaHistorial[]);
     if (piezasResp.data) setPiezas(piezasResp.data as PiezaHistorial[]);
-    if (impResp.data) setImpresoras(impResp.data);
+    if (impResp.data) setImpresoras(impResp.data as PrinterFull[]);
+    if (profResp.data) setProfiles(profResp.data as Profile[]);
+    if (secResp.data) setSectores(secResp.data);
+    if (filResp.data) setFiliales(filResp.data);
     
     setLoading(false);
   };
 
-  const filteredLecturas = lecturas.filter(l => {
-    if (filterPrinter !== 'all' && l.impresora_id !== filterPrinter) return false;
-    if (filterDateFrom && new Date(l.fecha_lectura) < new Date(filterDateFrom)) return false;
-    if (filterDateTo && new Date(l.fecha_lectura) > new Date(filterDateTo + 'T23:59:59')) return false;
-    if (searchTerm && !l.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  const getProfileName = (userId: string | null) => {
+    if (!userId) return 'Desconocido';
+    const p = profiles.find(pr => pr.id === userId);
+    return p?.full_name || p?.email || userId.slice(0, 8);
+  };
 
-  const filteredHistorial = historial.filter(h => {
-    if (filterPrinter !== 'all' && h.impresora_id !== filterPrinter) return false;
-    if (filterDateFrom && new Date(h.created_at) < new Date(filterDateFrom)) return false;
-    if (filterDateTo && new Date(h.created_at) > new Date(filterDateTo + 'T23:59:59')) return false;
-    if (searchTerm && !h.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  // Get printer IDs that match sector/filial filters
+  const allowedPrinterIds = new Set(
+    impresoras
+      .filter(p => {
+        if (filterSector !== 'all' && p.sector_id !== filterSector) return false;
+        if (filterFilial !== 'all' && p.filial_id !== filterFilial) return false;
+        return true;
+      })
+      .map(p => p.id)
+  );
 
-  const filteredPiezas = piezas.filter(p => {
-    if (filterPrinter !== 'all' && p.impresora_id !== filterPrinter) return false;
-    if (filterDateFrom && new Date(p.fecha_cambio) < new Date(filterDateFrom)) return false;
-    if (filterDateTo && new Date(p.fecha_cambio) > new Date(filterDateTo + 'T23:59:59')) return false;
-    if (searchTerm && !p.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
-    return true;
-  });
+  const sortByDate = <T extends { [key: string]: any }>(arr: T[], dateField: string): T[] => {
+    return [...arr].sort((a, b) => {
+      const da = new Date(a[dateField]).getTime();
+      const db = new Date(b[dateField]).getTime();
+      return sortOrder === 'asc' ? da - db : db - da;
+    });
+  };
+
+  const filteredLecturas = sortByDate(
+    lecturas.filter(l => {
+      if (filterPrinter !== 'all' && l.impresora_id !== filterPrinter) return false;
+      if (!allowedPrinterIds.has(l.impresora_id)) return false;
+      if (filterDateFrom && new Date(l.fecha_lectura) < new Date(filterDateFrom)) return false;
+      if (filterDateTo && new Date(l.fecha_lectura) > new Date(filterDateTo + 'T23:59:59')) return false;
+      if (searchTerm && !l.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    }),
+    'fecha_lectura'
+  );
+
+  const filteredHistorial = sortByDate(
+    historial.filter(h => {
+      if (filterPrinter !== 'all' && h.impresora_id !== filterPrinter) return false;
+      if (!allowedPrinterIds.has(h.impresora_id)) return false;
+      if (filterDateFrom && new Date(h.created_at) < new Date(filterDateFrom)) return false;
+      if (filterDateTo && new Date(h.created_at) > new Date(filterDateTo + 'T23:59:59')) return false;
+      if (searchTerm && !h.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    }),
+    'created_at'
+  );
+
+  const filteredPiezas = sortByDate(
+    piezas.filter(p => {
+      if (filterPrinter !== 'all' && p.impresora_id !== filterPrinter) return false;
+      if (!allowedPrinterIds.has(p.impresora_id)) return false;
+      if (filterDateFrom && new Date(p.fecha_cambio) < new Date(filterDateFrom)) return false;
+      if (filterDateTo && new Date(p.fecha_cambio) > new Date(filterDateTo + 'T23:59:59')) return false;
+      if (searchTerm && !p.impresoras?.nombre.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+      return true;
+    }),
+    'fecha_cambio'
+  );
 
   const exportToCSV = () => {
     let data: Record<string, any>[] = [];
@@ -160,6 +204,7 @@ export default function Historial() {
         Serie: l.impresoras?.serie || '',
         ContadorNegro: l.contador_negro || '',
         ContadorColor: l.contador_color || '',
+        RegistradoPor: getProfileName(l.registrado_por),
         Notas: l.notas || '',
       }));
     } else if (activeTab === 'cambios') {
@@ -169,6 +214,7 @@ export default function Historial() {
         Campo: h.campo_modificado,
         ValorAnterior: h.valor_anterior || '',
         ValorNuevo: h.valor_nuevo || '',
+        RealizadoPor: getProfileName(h.usuario_id),
         Motivo: h.motivo || '',
       }));
     } else {
@@ -180,11 +226,13 @@ export default function Historial() {
         VidaUtilEstimada: p.vida_util_estimada,
         VidaUtilReal: p.vida_util_real || '',
         PorcentajeConsumo: p.porcentaje_vida_consumida ? `${p.porcentaje_vida_consumida}%` : '',
+        InstaladoPor: getProfileName(p.tecnico_id),
         Motivo: p.motivo || '',
       }));
     }
 
-    const headers = Object.keys(data[0] || {}).join(',');
+    if (data.length === 0) return;
+    const headers = Object.keys(data[0]).join(',');
     const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
     const csv = `${headers}\n${rows}`;
     
@@ -206,27 +254,32 @@ export default function Historial() {
     let body: string[][] = [];
 
     if (activeTab === 'lecturas') {
-      head = [['Fecha', 'Impresora', 'Serie', 'Negro', 'Color', 'Notas']];
+      head = [['Fecha', 'Impresora', 'Serie', 'Negro', 'Color', 'Registrado Por', 'Notas']];
       body = filteredLecturas.map(l => [
         new Date(l.fecha_lectura).toLocaleString('es'),
         l.impresoras?.nombre || '-', l.impresoras?.serie || '-',
         l.contador_negro?.toLocaleString() ?? '-', l.contador_color?.toLocaleString() ?? '-',
+        getProfileName(l.registrado_por),
         l.notas || '-',
       ]);
     } else if (activeTab === 'cambios') {
-      head = [['Fecha', 'Impresora', 'Campo', 'Anterior', 'Nuevo', 'Motivo']];
+      head = [['Fecha', 'Impresora', 'Campo', 'Anterior', 'Nuevo', 'Realizado Por', 'Motivo']];
       body = filteredHistorial.map(h => [
         new Date(h.created_at).toLocaleString('es'),
         h.impresoras?.nombre || '-', h.campo_modificado,
-        h.valor_anterior || '-', h.valor_nuevo || '-', h.motivo || '-',
+        h.valor_anterior || '-', h.valor_nuevo || '-',
+        getProfileName(h.usuario_id),
+        h.motivo || '-',
       ]);
     } else {
-      head = [['Fecha', 'Impresora', 'Pieza', 'Tipo', 'Vida Estimada', 'Vida Real', '% Consumo', 'Motivo']];
+      head = [['Fecha', 'Impresora', 'Pieza', 'Vida Est.', 'Vida Real', '% Consumo', 'Técnico', 'Motivo']];
       body = filteredPiezas.map(p => [
         new Date(p.fecha_cambio).toLocaleString('es'),
-        p.impresoras?.nombre || '-', p.nombre_pieza, p.tipo_pieza,
+        p.impresoras?.nombre || '-', p.nombre_pieza,
         p.vida_util_estimada.toLocaleString(), (p.vida_util_real || 0).toLocaleString(),
-        p.porcentaje_vida_consumida ? `${p.porcentaje_vida_consumida}%` : '-', p.motivo || '-',
+        p.porcentaje_vida_consumida ? `${p.porcentaje_vida_consumida}%` : '-',
+        getProfileName(p.tecnico_id),
+        p.motivo || '-',
       ]);
     }
 
@@ -244,11 +297,16 @@ export default function Historial() {
 
   const clearFilters = () => {
     setFilterPrinter('all');
+    setFilterSector('all');
+    setFilterFilial('all');
     setFilterDateFrom('');
     setFilterDateTo('');
     setSearchTerm('');
     setPrinterFilterSearch('');
+    setSortOrder('desc');
   };
+
+  const hasActiveFilters = filterPrinter !== 'all' || filterSector !== 'all' || filterFilial !== 'all' || filterDateFrom || filterDateTo || searchTerm;
 
   return (
     <DashboardLayout>
@@ -263,7 +321,7 @@ export default function Historial() {
               Historial y Auditoría
             </h1>
             <p className="text-muted-foreground mt-1">
-              Registro detallado de lecturas y cambios en el sistema
+              Registro detallado de lecturas, cambios y quién los realizó
             </p>
           </div>
           <div className="flex gap-2">
@@ -280,30 +338,15 @@ export default function Historial() {
 
         {/* Tab selector */}
         <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
-          <Button
-            variant={activeTab === 'lecturas' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('lecturas')}
-            className="gap-2"
-          >
+          <Button variant={activeTab === 'lecturas' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('lecturas')} className="gap-2">
             <FileText className="w-4 h-4" />
             Lecturas de Contadores
           </Button>
-          <Button
-            variant={activeTab === 'cambios' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('cambios')}
-            className="gap-2"
-          >
+          <Button variant={activeTab === 'cambios' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('cambios')} className="gap-2">
             <HistoryIcon className="w-4 h-4" />
             Cambios en Impresoras
           </Button>
-          <Button
-            variant={activeTab === 'piezas' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => setActiveTab('piezas')}
-            className="gap-2"
-          >
+          <Button variant={activeTab === 'piezas' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('piezas')} className="gap-2">
             <Wrench className="w-4 h-4" />
             Reemplazo de Piezas
           </Button>
@@ -318,32 +361,20 @@ export default function Historial() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm">Buscar</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Nombre de impresora..."
-                    value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    className="pl-9"
-                  />
+                  <Input placeholder="Nombre impresora..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
                 </div>
               </div>
               
               <div className="space-y-2">
                 <Label className="text-sm">Impresora</Label>
-                <Input
-                  placeholder="Filtrar por nombre, serie o modelo..."
-                  value={printerFilterSearch}
-                  onChange={e => setPrinterFilterSearch(e.target.value)}
-                  className="mb-2"
-                />
+                <Input placeholder="Filtrar lista..." value={printerFilterSearch} onChange={e => setPrinterFilterSearch(e.target.value)} className="mb-1" />
                 <Select value={filterPrinter} onValueChange={setFilterPrinter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
                   <SelectContent className="bg-popover">
                     <SelectItem value="all">Todas las impresoras</SelectItem>
                     {impresoras
@@ -358,30 +389,51 @@ export default function Historial() {
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Sector</Label>
+                <Select value={filterSector} onValueChange={setFilterSector}>
+                  <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Todos los sectores</SelectItem>
+                    {sectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">Filial</Label>
+                <Select value={filterFilial} onValueChange={setFilterFilial}>
+                  <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Todas las filiales</SelectItem>
+                    {filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               
               <div className="space-y-2">
                 <Label className="text-sm">Desde</Label>
-                <Input
-                  type="date"
-                  value={filterDateFrom}
-                  onChange={e => setFilterDateFrom(e.target.value)}
-                />
+                <Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
               </div>
               
               <div className="space-y-2">
                 <Label className="text-sm">Hasta</Label>
-                <Input
-                  type="date"
-                  value={filterDateTo}
-                  onChange={e => setFilterDateTo(e.target.value)}
-                />
+                <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
               </div>
             </div>
             
-            <div className="flex justify-end mt-4">
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Limpiar filtros
+            <div className="flex justify-between items-center mt-4">
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+                <ArrowUpDown className="w-4 h-4" />
+                {sortOrder === 'desc' ? 'Más reciente primero' : 'Más antiguo primero'}
               </Button>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2 text-destructive hover:text-destructive">
+                  <XCircle className="w-4 h-4" />
+                  Borrar filtros
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -422,6 +474,7 @@ export default function Historial() {
                         <TableHead>Serie</TableHead>
                         <TableHead className="text-right">Contador Negro</TableHead>
                         <TableHead className="text-right">Contador Color</TableHead>
+                        <TableHead>Registrado Por</TableHead>
                         <TableHead>Notas</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -432,12 +485,8 @@ export default function Historial() {
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
                               <div>
-                                <div className="font-medium">
-                                  {new Date(lectura.fecha_lectura).toLocaleDateString('es')}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(lectura.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-                                </div>
+                                <div className="font-medium">{new Date(lectura.fecha_lectura).toLocaleDateString('es')}</div>
+                                <div className="text-xs text-muted-foreground">{new Date(lectura.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div>
                               </div>
                             </div>
                           </TableCell>
@@ -447,18 +496,16 @@ export default function Historial() {
                               <span className="font-medium">{lectura.impresoras?.nombre}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="font-mono text-sm text-muted-foreground">
-                            {lectura.impresoras?.serie}
+                          <TableCell className="font-mono text-sm text-muted-foreground">{lectura.impresoras?.serie}</TableCell>
+                          <TableCell className="text-right font-medium">{lectura.contador_negro?.toLocaleString() ?? '-'}</TableCell>
+                          <TableCell className="text-right font-medium">{lectura.contador_color?.toLocaleString() ?? '-'}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <User className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-sm">{getProfileName(lectura.registrado_por)}</span>
+                            </div>
                           </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {lectura.contador_negro?.toLocaleString() ?? '-'}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            {lectura.contador_color?.toLocaleString() ?? '-'}
-                          </TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                            {lectura.notas || '-'}
-                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground">{lectura.notas || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -480,6 +527,7 @@ export default function Historial() {
                         <TableHead>Impresora</TableHead>
                         <TableHead>Campo Modificado</TableHead>
                         <TableHead>Cambio</TableHead>
+                        <TableHead>Realizado Por</TableHead>
                         <TableHead>Motivo</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -490,12 +538,8 @@ export default function Historial() {
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
                               <div>
-                                <div className="font-medium">
-                                  {new Date(item.created_at).toLocaleDateString('es')}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(item.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-                                </div>
+                                <div className="font-medium">{new Date(item.created_at).toLocaleDateString('es')}</div>
+                                <div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div>
                               </div>
                             </div>
                           </TableCell>
@@ -505,25 +549,21 @@ export default function Historial() {
                               <span className="font-medium">{item.impresoras?.nombre}</span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {item.campo_modificado}
-                            </Badge>
-                          </TableCell>
+                          <TableCell><Badge variant="outline" className="capitalize">{item.campo_modificado}</Badge></TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2 text-sm">
-                              <span className="text-muted-foreground line-through">
-                                {item.valor_anterior || 'N/A'}
-                              </span>
+                              <span className="text-muted-foreground line-through">{item.valor_anterior || 'N/A'}</span>
                               <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                              <span className="font-medium text-success">
-                                {item.valor_nuevo || 'N/A'}
-                              </span>
+                              <span className="font-medium text-success">{item.valor_nuevo || 'N/A'}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                            {item.motivo || '-'}
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <User className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-sm">{getProfileName(item.usuario_id)}</span>
+                            </div>
                           </TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground">{item.motivo || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -548,6 +588,7 @@ export default function Historial() {
                         <TableHead className="text-right">Vida Útil Est.</TableHead>
                         <TableHead className="text-right">Vida Real</TableHead>
                         <TableHead className="text-right">% Consumido</TableHead>
+                        <TableHead>Técnico</TableHead>
                         <TableHead>Motivo</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -558,12 +599,8 @@ export default function Historial() {
                             <div className="flex items-center gap-2">
                               <Calendar className="w-4 h-4 text-muted-foreground" />
                               <div>
-                                <div className="font-medium">
-                                  {new Date(pieza.fecha_cambio).toLocaleDateString('es')}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                  {new Date(pieza.fecha_cambio).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-                                </div>
+                                <div className="font-medium">{new Date(pieza.fecha_cambio).toLocaleDateString('es')}</div>
+                                <div className="text-xs text-muted-foreground">{new Date(pieza.fecha_cambio).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div>
                               </div>
                             </div>
                           </TableCell>
@@ -574,31 +611,27 @@ export default function Historial() {
                             </div>
                           </TableCell>
                           <TableCell className="font-medium">{pieza.nombre_pieza}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="capitalize">
-                              {pieza.tipo_pieza.replace('_', ' ')}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {pieza.vida_util_estimada.toLocaleString()} págs
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {pieza.vida_util_real ? `${pieza.vida_util_real.toLocaleString()} págs` : '-'}
-                          </TableCell>
+                          <TableCell><Badge variant="outline" className="capitalize">{pieza.tipo_pieza.replace('_', ' ')}</Badge></TableCell>
+                          <TableCell className="text-right">{pieza.vida_util_estimada.toLocaleString()} págs</TableCell>
+                          <TableCell className="text-right">{pieza.vida_util_real ? `${pieza.vida_util_real.toLocaleString()} págs` : '-'}</TableCell>
                           <TableCell className="text-right">
                             {pieza.porcentaje_vida_consumida !== null ? (
                               <span className={cn(
                                 'font-medium',
-                                pieza.porcentaje_vida_consumida >= 90 ? 'text-destructive' :
-                                pieza.porcentaje_vida_consumida >= 70 ? 'text-warning' : 'text-success'
+                                (pieza.porcentaje_vida_consumida ?? 0) >= 90 ? 'text-destructive' :
+                                (pieza.porcentaje_vida_consumida ?? 0) >= 70 ? 'text-warning' : 'text-success'
                               )}>
                                 {pieza.porcentaje_vida_consumida}%
                               </span>
                             ) : '-'}
                           </TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                            {pieza.motivo || pieza.observaciones || '-'}
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <User className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-sm">{getProfileName(pieza.tecnico_id)}</span>
+                            </div>
                           </TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground">{pieza.motivo || pieza.observaciones || '-'}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

@@ -1,4 +1,4 @@
-import { Home, FileText, Printer, Settings, LogOut, Moon, Sun, ChevronLeft, BarChart3, History, ClipboardList, Users, Wrench } from 'lucide-react';
+import { Home, FileText, Printer, Settings, LogOut, Moon, Sun, ChevronLeft, BarChart3, History, ClipboardList, Users, Wrench, DollarSign } from 'lucide-react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,6 +22,7 @@ const menuItems: MenuItem[] = [
   { title: 'Registrar Impresora', url: '/dashboard/impresoras', icon: Printer, adminOnly: true },
   { title: 'Informes', url: '/dashboard/informes', icon: BarChart3 },
   { title: 'Historial', url: '/dashboard/historial', icon: History },
+  { title: 'Costos', url: '/dashboard/costos', icon: DollarSign },
   { title: 'Usuarios', url: '/dashboard/usuarios', icon: Users, adminOnly: true },
   { title: 'Configuraciones', url: '/dashboard/configuraciones', icon: Settings, adminOnly: true },
 ];

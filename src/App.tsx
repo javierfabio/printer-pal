@@ -17,6 +17,7 @@ import Configuraciones from "./pages/Configuraciones";
 import RegistroUso from "./pages/RegistroUso";
 import Historial from "./pages/Historial";
 import Usuarios from "./pages/Usuarios";
+import Costos from "./pages/Costos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,14 @@ const App = () => (
                 element={
                   <ProtectedRoute requireAdmin>
                     <Usuarios />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/dashboard/costos"
+                element={
+                  <ProtectedRoute>
+                    <Costos />
                   </ProtectedRoute>
                 }
               />
