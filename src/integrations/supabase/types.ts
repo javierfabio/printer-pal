@@ -50,6 +50,44 @@ export type Database = {
         }
         Relationships: []
       }
+      costos_consumibles: {
+        Row: {
+          created_at: string
+          id: string
+          impresora_id: string | null
+          moneda: string
+          precio: number
+          tipo_pieza: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          impresora_id?: string | null
+          moneda?: string
+          precio?: number
+          tipo_pieza: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          impresora_id?: string | null
+          moneda?: string
+          precio?: number
+          tipo_pieza?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "costos_consumibles_impresora_id_fkey"
+            columns: ["impresora_id"]
+            isOneToOne: false
+            referencedRelation: "impresoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       filiales: {
         Row: {
           activo: boolean | null

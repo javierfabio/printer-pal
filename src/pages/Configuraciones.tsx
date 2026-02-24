@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload } from 'lucide-react';
+import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { getCorporateLogo, saveCorporateLogo, removeCorporateLogo, getCorporateName, saveCorporateName } from '@/lib/pdfHeader';
+import { getInactivityTimeout, saveInactivityTimeout } from '@/hooks/useInactivityTimeout';
 
 interface Sector {
   id: string;
@@ -25,6 +27,40 @@ interface Filial {
   direccion: string | null;
   activo: boolean;
 }
+
+// Report config stored in localStorage
+const REPORT_CONFIG_KEY = 'report_config';
+
+interface ReportConfig {
+  showSignature: boolean;
+  responsibleName: string;
+  headerText: string;
+  footerText: string;
+  maxImageSizeKB: number;
+  defaultFormat: 'pdf' | 'csv';
+}
+
+function getReportConfig(): ReportConfig {
+  const raw = localStorage.getItem(REPORT_CONFIG_KEY);
+  if (raw) {
+    try { return JSON.parse(raw); } catch { /* fallthrough */ }
+  }
+  return {
+    showSignature: false,
+    responsibleName: '',
+    headerText: '',
+    footerText: '',
+    maxImageSizeKB: 500,
+    defaultFormat: 'pdf',
+  };
+}
+
+function saveReportConfig(config: ReportConfig) {
+  localStorage.setItem(REPORT_CONFIG_KEY, JSON.stringify(config));
+}
+
+export { getReportConfig, saveReportConfig };
+export type { ReportConfig };
 
 export default function Configuraciones() {
   const { role } = useAuth();
@@ -46,11 +82,17 @@ export default function Configuraciones() {
   const [companyName, setCompanyName] = useState(getCorporateName() || '');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Inactivity timeout
+  const [inactivityMinutes, setInactivityMinutes] = useState(getInactivityTimeout());
+
+  // Report config
+  const [reportConfig, setReportConfig] = useState<ReportConfig>(getReportConfig());
+
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500 * 1024) {
-      toast({ variant: 'destructive', title: 'Error', description: 'El logo no debe superar 500KB.' });
+    if (file.size > reportConfig.maxImageSizeKB * 1024) {
+      toast({ variant: 'destructive', title: 'Error', description: `El logo no debe superar ${reportConfig.maxImageSizeKB}KB.` });
       return;
     }
     const reader = new FileReader();
@@ -163,14 +205,50 @@ export default function Configuraciones() {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <div className="p-2 rounded-lg bg-primary/10">
-              <MapPin className="w-7 h-7 text-primary" />
+              <Settings className="w-7 h-7 text-primary" />
             </div>
             Configuraciones
           </h1>
           <p className="text-muted-foreground mt-1">
-            Administración de sectores, filiales y personalización
+            Administración de sectores, filiales, seguridad y personalización
           </p>
         </div>
+
+        {/* Inactivity Timeout */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="w-5 h-5" />
+              Cierre por Inactividad
+            </CardTitle>
+            <CardDescription>
+              Tiempo de inactividad antes de cerrar sesión automáticamente
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3 items-end">
+              <div className="flex-1 space-y-2">
+                <Label>Minutos de inactividad</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={480}
+                  value={inactivityMinutes}
+                  onChange={e => setInactivityMinutes(parseInt(e.target.value) || 30)}
+                />
+                <p className="text-xs text-muted-foreground">Rango recomendado: 5 a 60 minutos</p>
+              </div>
+              <Button
+                onClick={() => {
+                  saveInactivityTimeout(inactivityMinutes);
+                  toast({ title: 'Guardado', description: `La sesión se cerrará tras ${inactivityMinutes} minutos de inactividad.` });
+                }}
+              >
+                Guardar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Logo Corporativo */}
         <Card>
@@ -180,7 +258,7 @@ export default function Configuraciones() {
               Logo Corporativo
             </CardTitle>
             <CardDescription>
-              Este logo aparecerá en el encabezado de todos los documentos PDF exportados
+              Este logo aparecerá en el encabezado de todos los documentos PDF exportados. Tamaño máximo: {reportConfig.maxImageSizeKB}KB
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -194,7 +272,7 @@ export default function Configuraciones() {
               </div>
               <div className="space-y-3">
                 <p className="text-sm text-muted-foreground">
-                  Formatos: PNG, JPG. Máximo 500KB. Recomendado: fondo transparente.
+                  Formatos: PNG, JPG. Máximo {reportConfig.maxImageSizeKB}KB. Recomendado: fondo transparente.
                 </p>
                 <div className="flex gap-2">
                   <input
@@ -258,6 +336,93 @@ export default function Configuraciones() {
                 }}
               >
                 Guardar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Report Configuration */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Configuración de Reportes
+            </CardTitle>
+            <CardDescription>
+              Personaliza la apariencia y contenido de los informes exportados
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Nombre del Responsable</Label>
+                <Input
+                  value={reportConfig.responsibleName}
+                  onChange={e => setReportConfig({ ...reportConfig, responsibleName: e.target.value })}
+                  placeholder="Ej: Juan Pérez"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Formato por defecto</Label>
+                <Select
+                  value={reportConfig.defaultFormat}
+                  onValueChange={v => setReportConfig({ ...reportConfig, defaultFormat: v as 'pdf' | 'csv' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="pdf">PDF</SelectItem>
+                    <SelectItem value="csv">CSV (Excel)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tamaño máximo de imágenes (KB)</Label>
+                <Input
+                  type="number"
+                  min={100}
+                  max={5000}
+                  value={reportConfig.maxImageSizeKB}
+                  onChange={e => setReportConfig({ ...reportConfig, maxImageSizeKB: parseInt(e.target.value) || 500 })}
+                />
+                <p className="text-xs text-muted-foreground">Tamaño recomendado: 200-500 KB</p>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                <div>
+                  <Label>Mostrar firma en reportes</Label>
+                  <p className="text-xs text-muted-foreground">Se agrega al pie de cada PDF exportado</p>
+                </div>
+                <Switch
+                  checked={reportConfig.showSignature}
+                  onCheckedChange={checked => setReportConfig({ ...reportConfig, showSignature: checked })}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Texto de encabezado personalizado</Label>
+              <Input
+                value={reportConfig.headerText}
+                onChange={e => setReportConfig({ ...reportConfig, headerText: e.target.value })}
+                placeholder="Ej: Departamento de Sistemas"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Texto de pie de página</Label>
+              <Input
+                value={reportConfig.footerText}
+                onChange={e => setReportConfig({ ...reportConfig, footerText: e.target.value })}
+                placeholder="Ej: Documento confidencial - Uso interno"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => {
+                  saveReportConfig(reportConfig);
+                  toast({ title: 'Guardado', description: 'Configuración de reportes actualizada.' });
+                }}
+              >
+                Guardar Configuración
               </Button>
             </div>
           </CardContent>
