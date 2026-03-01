@@ -88,6 +88,36 @@ export type Database = {
           },
         ]
       }
+      costos_reparacion: {
+        Row: {
+          costo: number
+          created_at: string
+          descripcion: string | null
+          id: string
+          moneda: string
+          tipo_reparacion: string
+          updated_at: string
+        }
+        Insert: {
+          costo?: number
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          moneda?: string
+          tipo_reparacion: string
+          updated_at?: string
+        }
+        Update: {
+          costo?: number
+          created_at?: string
+          descripcion?: string | null
+          id?: string
+          moneda?: string
+          tipo_reparacion?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       filiales: {
         Row: {
           activo: boolean | null
@@ -232,6 +262,8 @@ export type Database = {
           fecha_registro: string
           filial_id: string | null
           id: string
+          ip_address: string | null
+          lectura_ip: boolean
           modelo: string
           nombre: string
           sector_id: string | null
@@ -252,6 +284,8 @@ export type Database = {
           fecha_registro?: string
           filial_id?: string | null
           id?: string
+          ip_address?: string | null
+          lectura_ip?: boolean
           modelo: string
           nombre: string
           sector_id?: string | null
@@ -272,6 +306,8 @@ export type Database = {
           fecha_registro?: string
           filial_id?: string | null
           id?: string
+          ip_address?: string | null
+          lectura_ip?: boolean
           modelo?: string
           nombre?: string
           sector_id?: string | null
@@ -390,6 +426,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      precios_modelo: {
+        Row: {
+          created_at: string
+          id: string
+          modelo: string
+          moneda: string
+          precio_bn: number
+          precio_color: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modelo: string
+          moneda?: string
+          precio_bn?: number
+          precio_color?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modelo?: string
+          moneda?: string
+          precio_bn?: number
+          precio_color?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {

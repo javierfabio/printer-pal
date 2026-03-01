@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,18 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import {
-  BarChart3,
-  Download,
-  Filter,
-  Loader2,
-  Printer,
-  TrendingUp,
-  FileText,
-  PieChart,
-  Wrench,
-  XCircle,
-  ArrowUpDown,
-  User
+  BarChart3, Download, Filter, Loader2, Printer, TrendingUp, FileText, PieChart, Wrench, XCircle, ArrowUpDown, User
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -29,57 +18,15 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 
-interface Impresora {
-  id: string;
-  nombre: string;
-  serie: string;
-  modelo: string;
-  tipo_impresion: string;
-  contador_negro_actual: number;
-  contador_color_actual: number;
-  contador_negro_inicial: number;
-  contador_color_inicial: number;
-  sector_id: string | null;
-  filial_id: string | null;
-}
-
+interface Impresora { id: string; nombre: string; serie: string; modelo: string; tipo_impresion: string; contador_negro_actual: number; contador_color_actual: number; contador_negro_inicial: number; contador_color_inicial: number; sector_id: string | null; filial_id: string | null; }
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
 interface Profile { id: string; full_name: string | null; email: string; }
-
-interface PiezaInfo {
-  id: string;
-  nombre_pieza: string;
-  tipo_pieza: string;
-  vida_util_estimada: number;
-  porcentaje_usado: number;
-  impresora_nombre: string;
-  impresora_serie: string;
-  impresora_id: string;
-}
-
-interface LecturaInfo {
-  id: string;
-  fecha_lectura: string;
-  contador_negro: number | null;
-  contador_color: number | null;
-  registrado_por: string;
-  impresora_id: string;
-  impresoras?: { nombre: string; serie: string };
-}
+interface PiezaInfo { id: string; nombre_pieza: string; tipo_pieza: string; vida_util_estimada: number; porcentaje_usado: number; impresora_nombre: string; impresora_serie: string; impresora_id: string; }
+interface LecturaInfo { id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; registrado_por: string; impresora_id: string; impresoras?: { nombre: string; serie: string }; }
 
 const COLORS = ['hsl(221, 83%, 53%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
-
-const TIPO_PIEZA_LABELS: Record<string, string> = {
-  toner_negro: 'Tóner Negro',
-  toner_color: 'Tóner Color',
-  fusor: 'Fusor',
-  unidad_imagen: 'Unidad de Imagen',
-  malla: 'Malla / Mesh',
-  transfer_belt: 'Transfer Belt',
-  rodillo: 'Rodillo',
-  otro: 'Otra Pieza',
-};
+const TIPO_PIEZA_LABELS: Record<string, string> = { toner_negro: 'Tóner Negro', toner_color: 'Tóner Color', fusor: 'Fusor', unidad_imagen: 'Unidad de Imagen', malla: 'Malla / Mesh', transfer_belt: 'Transfer Belt', rodillo: 'Rodillo', otro: 'Otra Pieza' };
 
 export default function Informes() {
   const { role } = useAuth();
@@ -91,13 +38,11 @@ export default function Informes() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [piezas, setPiezas] = useState<PiezaInfo[]>([]);
   const [lecturas, setLecturas] = useState<LecturaInfo[]>([]);
-  
-  // Filters
-  const [filterSector, setFilterSector] = useState<string>('all');
+
   const [filterFilial, setFilterFilial] = useState<string>('all');
+  const [filterSector, setFilterSector] = useState<string>('all');
   const [filterModelo, setFilterModelo] = useState<string>('all');
   const [filterPrinter, setFilterPrinter] = useState<string>('all');
-  const [printerSearch, setPrinterSearch] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
@@ -106,7 +51,6 @@ export default function Informes() {
 
   const fetchData = async () => {
     setLoading(true);
-    
     const [impResp, secResp, filResp, piezasResp, profResp, lecResp] = await Promise.all([
       supabase.from('impresoras').select('*').eq('estado', 'activa'),
       supabase.from('sectores').select('*').eq('activo', true),
@@ -115,401 +59,196 @@ export default function Informes() {
       supabase.from('profiles').select('id, full_name, email'),
       supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie)').order('fecha_lectura', { ascending: false }).limit(200),
     ]);
-
     if (impResp.data) setImpresoras(impResp.data);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
     if (profResp.data) setProfiles(profResp.data as Profile[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaInfo[]);
-    
     if (piezasResp.data) {
-      const piezasInfo: PiezaInfo[] = piezasResp.data.map((p: any) => {
+      setPiezas(piezasResp.data.map((p: any) => {
         const contadorActual = (p.impresoras?.contador_negro_actual || 0) + (p.impresoras?.contador_color_actual || 0);
         const paginasUsadas = contadorActual - p.contador_instalacion + p.paginas_consumidas;
-        const porcentaje = Math.min(100, (paginasUsadas / p.vida_util_estimada) * 100);
-        
-        return {
-          id: p.id,
-          nombre_pieza: p.nombre_pieza,
-          tipo_pieza: p.tipo_pieza,
-          vida_util_estimada: p.vida_util_estimada,
-          porcentaje_usado: porcentaje,
-          impresora_nombre: p.impresoras?.nombre || '',
-          impresora_serie: p.impresoras?.serie || '',
-          impresora_id: p.impresora_id,
-        };
-      });
-      setPiezas(piezasInfo);
+        return { id: p.id, nombre_pieza: p.nombre_pieza, tipo_pieza: p.tipo_pieza, vida_util_estimada: p.vida_util_estimada, porcentaje_usado: Math.min(100, (paginasUsadas / p.vida_util_estimada) * 100), impresora_nombre: p.impresoras?.nombre || '', impresora_serie: p.impresoras?.serie || '', impresora_id: p.impresora_id };
+      }));
     }
-    
     setLoading(false);
   };
 
-  const getProfileName = (userId: string | null) => {
-    if (!userId) return 'Desconocido';
-    const p = profiles.find(pr => pr.id === userId);
-    return p?.full_name || p?.email || userId.slice(0, 8);
-  };
+  const getProfileName = (userId: string | null) => { if (!userId) return 'Desconocido'; const p = profiles.find(pr => pr.id === userId); return p?.full_name || p?.email || userId.slice(0, 8); };
+  const getSectorName = (id: string | null) => sectores.find(s => s.id === id)?.nombre || '-';
+  const getFilialName = (id: string | null) => filiales.find(f => f.id === id)?.nombre || '-';
 
-  // Unique models
-  const uniqueModelos = [...new Set(impresoras.map(i => i.modelo))].sort();
+  // Cascade filters
+  const filteredSectores = useMemo(() => {
+    if (filterFilial === 'all') return sectores;
+    const sectorIds = new Set(impresoras.filter(p => p.filial_id === filterFilial).map(p => p.sector_id).filter(Boolean));
+    return sectores.filter(s => sectorIds.has(s.id));
+  }, [filterFilial, sectores, impresoras]);
 
-  // Filter printers
-  const filteredImpresoras = impresoras.filter(imp => {
-    if (filterSector !== 'all' && imp.sector_id !== filterSector) return false;
-    if (filterFilial !== 'all' && imp.filial_id !== filterFilial) return false;
-    if (filterModelo !== 'all' && imp.modelo !== filterModelo) return false;
-    if (filterPrinter !== 'all' && imp.id !== filterPrinter) return false;
-    return true;
-  });
+  const filteredModelos = useMemo(() => {
+    let f = impresoras;
+    if (filterFilial !== 'all') f = f.filter(p => p.filial_id === filterFilial);
+    if (filterSector !== 'all') f = f.filter(p => p.sector_id === filterSector);
+    return [...new Set(f.map(p => p.modelo))].sort();
+  }, [filterFilial, filterSector, impresoras]);
+
+  const filteredPrinterList = useMemo(() => {
+    let f = impresoras;
+    if (filterFilial !== 'all') f = f.filter(p => p.filial_id === filterFilial);
+    if (filterSector !== 'all') f = f.filter(p => p.sector_id === filterSector);
+    if (filterModelo !== 'all') f = f.filter(p => p.modelo === filterModelo);
+    return f;
+  }, [filterFilial, filterSector, filterModelo, impresoras]);
+
+  const filteredImpresoras = useMemo(() => {
+    let f = filteredPrinterList;
+    if (filterPrinter !== 'all') f = f.filter(p => p.id === filterPrinter);
+    return f;
+  }, [filteredPrinterList, filterPrinter]);
 
   const filteredPrinterIds = new Set(filteredImpresoras.map(i => i.id));
 
-  // Sort
   const sortedImpresoras = [...filteredImpresoras].sort((a, b) => {
     const totalA = (a.contador_negro_actual - a.contador_negro_inicial) + (a.contador_color_actual - a.contador_color_inicial);
     const totalB = (b.contador_negro_actual - b.contador_negro_inicial) + (b.contador_color_actual - b.contador_color_inicial);
     return sortOrder === 'asc' ? totalA - totalB : totalB - totalA;
   });
 
-  // Stats
   const totalPaginasNegro = filteredImpresoras.reduce((acc, imp) => acc + (imp.contador_negro_actual - imp.contador_negro_inicial), 0);
   const totalPaginasColor = filteredImpresoras.reduce((acc, imp) => acc + (imp.contador_color_actual - imp.contador_color_inicial), 0);
   const totalPaginas = totalPaginasNegro + totalPaginasColor;
 
-  // Charts
-  const printerChartData = sortedImpresoras
-    .map(imp => ({
-      name: imp.nombre.length > 15 ? imp.nombre.substring(0, 15) + '...' : imp.nombre,
-      negro: imp.contador_negro_actual - imp.contador_negro_inicial,
-      color: imp.contador_color_actual - imp.contador_color_inicial,
-      total: (imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial),
-    }))
-    .slice(0, 10);
+  const printerChartData = sortedImpresoras.map(imp => ({
+    name: imp.nombre.length > 15 ? imp.nombre.substring(0, 15) + '...' : imp.nombre,
+    negro: imp.contador_negro_actual - imp.contador_negro_inicial,
+    color: imp.contador_color_actual - imp.contador_color_inicial,
+  })).slice(0, 10);
 
-  const sectorChartData = sectores.map(sector => {
-    const sectorPrinters = filteredImpresoras.filter(imp => imp.sector_id === sector.id);
-    const total = sectorPrinters.reduce((acc, imp) =>
-      acc + (imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial), 0
-    );
-    return { name: sector.nombre, value: total };
-  }).filter(s => s.value > 0);
-
-  const pieData = [
-    { name: 'Blanco y Negro', value: totalPaginasNegro },
-    { name: 'Color', value: totalPaginasColor },
-  ].filter(d => d.value > 0);
-
+  const pieData = [{ name: 'Blanco y Negro', value: totalPaginasNegro }, { name: 'Color', value: totalPaginasColor }].filter(d => d.value > 0);
   const filteredPiezas = piezas.filter(p => filteredPrinterIds.has(p.impresora_id));
 
-  const clearFilters = () => {
-    setFilterSector('all');
-    setFilterFilial('all');
-    setFilterModelo('all');
-    setFilterPrinter('all');
-    setPrinterSearch('');
-    setFilterDateFrom('');
-    setFilterDateTo('');
-    setSortOrder('desc');
-  };
-
-  const hasActiveFilters = filterSector !== 'all' || filterFilial !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo;
-
-  const getSectorName = (id: string | null) => sectores.find(s => s.id === id)?.nombre || '-';
-  const getFilialName = (id: string | null) => filiales.find(f => f.id === id)?.nombre || '-';
+  const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSortOrder('desc'); };
+  const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo;
 
   const exportToPDF = () => {
-    const doc = new jsPDF();
-    const startY = addPDFHeader(doc, 'Informe de Consumo de Impresoras');
-
-    doc.setFontSize(12);
-    doc.setTextColor(40, 40, 40);
-    doc.text('Resumen General', 14, startY);
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    doc.text(`Total de Impresoras: ${filteredImpresoras.length}`, 14, startY + 8);
-    doc.text(`Total de Páginas: ${totalPaginas.toLocaleString()}`, 14, startY + 14);
-    doc.text(`Páginas B/N: ${totalPaginasNegro.toLocaleString()}`, 14, startY + 20);
-    doc.text(`Páginas Color: ${totalPaginasColor.toLocaleString()}`, 14, startY + 26);
-
-    doc.setFontSize(12);
-    doc.text('Detalle por Impresora', 14, startY + 38);
-
-    const printerTableData = sortedImpresoras.map(imp => [
-      imp.nombre,
-      imp.modelo,
-      imp.serie,
-      getSectorName(imp.sector_id),
-      getFilialName(imp.filial_id),
-      (imp.contador_negro_actual - imp.contador_negro_inicial).toLocaleString(),
-      (imp.contador_color_actual - imp.contador_color_inicial).toLocaleString(),
-      ((imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial)).toLocaleString(),
-    ]);
+    const doc = new jsPDF('landscape');
+    let startY = addPDFHeader(doc, 'Informe General de Uso');
+    doc.setFontSize(10); doc.setTextColor(60, 60, 60);
+    doc.text(`Total Impresoras: ${filteredImpresoras.length} | Páginas: ${totalPaginas.toLocaleString()} | B/N: ${totalPaginasNegro.toLocaleString()} | Color: ${totalPaginasColor.toLocaleString()}`, 14, startY);
 
     autoTable(doc, {
-      startY: startY + 44,
-      head: [['Nombre', 'Modelo', 'Serie', 'Sector', 'Filial', 'Pág. B/N', 'Pág. Color', 'Total']],
-      body: printerTableData,
-      theme: 'striped',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-      styles: { fontSize: 7 },
+      startY: startY + 6,
+      head: [['Fecha', 'Filial', 'Sector', 'Modelo', 'Serie', 'Nombre', 'Pág. B/N', 'Pág. Color', 'Total']],
+      body: sortedImpresoras.map(imp => ['-', getFilialName(imp.filial_id), getSectorName(imp.sector_id), imp.modelo, imp.serie, imp.nombre, (imp.contador_negro_actual - imp.contador_negro_inicial).toLocaleString(), (imp.contador_color_actual - imp.contador_color_inicial).toLocaleString(), ((imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial)).toLocaleString()]),
+      theme: 'striped', headStyles: { fillColor: [59, 130, 246], textColor: 255 }, styles: { fontSize: 7 },
     });
 
     // Parts page
     doc.addPage();
     const partsY = addPDFHeader(doc, 'Estado de Piezas');
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    doc.text(`Total de Piezas Activas: ${filteredPiezas.length}`, 14, partsY);
-    doc.text(`Piezas con Alerta (>70%): ${filteredPiezas.filter(p => p.porcentaje_usado >= 70).length}`, 14, partsY + 6);
-
-    const piezasTableData = filteredPiezas
-      .sort((a, b) => b.porcentaje_usado - a.porcentaje_usado)
-      .map(p => [
-        TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza,
-        p.nombre_pieza,
-        p.impresora_nombre,
-        p.vida_util_estimada.toLocaleString(),
-        `${p.porcentaje_usado.toFixed(1)}%`,
-        p.porcentaje_usado >= 90 ? 'Crítico' : p.porcentaje_usado >= 70 ? 'Advertencia' : 'OK',
-      ]);
-
     autoTable(doc, {
-      startY: partsY + 12,
+      startY: partsY,
       head: [['Tipo', 'Nombre', 'Impresora', 'Vida Útil', '% Usado', 'Estado']],
-      body: piezasTableData,
-      theme: 'striped',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-      styles: { fontSize: 8 },
-      didParseCell: (data) => {
-        if (data.column.index === 5 && data.section === 'body') {
-          const value = data.cell.raw as string;
-          if (value === 'Crítico') { data.cell.styles.textColor = [220, 38, 38]; data.cell.styles.fontStyle = 'bold'; }
-          else if (value === 'Advertencia') { data.cell.styles.textColor = [234, 179, 8]; data.cell.styles.fontStyle = 'bold'; }
-          else { data.cell.styles.textColor = [34, 197, 94]; }
-        }
-      },
+      body: filteredPiezas.sort((a, b) => b.porcentaje_usado - a.porcentaje_usado).map(p => [TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza, p.nombre_pieza, p.impresora_nombre, p.vida_util_estimada.toLocaleString(), `${p.porcentaje_usado.toFixed(1)}%`, p.porcentaje_usado >= 90 ? 'Crítico' : p.porcentaje_usado >= 70 ? 'Advertencia' : 'OK']),
+      theme: 'striped', headStyles: { fillColor: [59, 130, 246], textColor: 255 }, styles: { fontSize: 8 },
     });
 
     addPDFPageNumbers(doc);
     doc.save(`informe_consumo_${new Date().toISOString().split('T')[0]}.pdf`);
-    toast({ title: 'PDF Generado', description: 'El informe ha sido descargado correctamente.' });
+    toast({ title: 'PDF Generado' });
   };
 
   const exportToCSV = () => {
     const data = sortedImpresoras.map(imp => ({
-      Nombre: imp.nombre,
-      Serie: imp.serie,
-      Modelo: imp.modelo,
-      Tipo: imp.tipo_impresion,
-      Sector: getSectorName(imp.sector_id),
-      Filial: getFilialName(imp.filial_id),
+      Nombre: imp.nombre, Serie: imp.serie, Modelo: imp.modelo, Tipo: imp.tipo_impresion,
+      Filial: getFilialName(imp.filial_id), Sector: getSectorName(imp.sector_id),
       PaginasNegro: imp.contador_negro_actual - imp.contador_negro_inicial,
       PaginasColor: imp.contador_color_actual - imp.contador_color_inicial,
       Total: (imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial),
     }));
-
     if (data.length === 0) return;
     const headers = Object.keys(data[0]).join(',');
     const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
-    const csv = `${headers}\n${rows}`;
-    
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`${headers}\n${rows}`], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `informe_impresoras_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    
-    toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
+    toast({ title: 'Exportado' });
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <BarChart3 className="w-7 h-7 text-primary" />
-              </div>
-              Informes y Estadísticas
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Análisis de consumo con historial de quién realizó cada registro
-            </p>
+            <h1 className="text-3xl font-bold flex items-center gap-3"><div className="p-2 rounded-lg bg-primary/10"><BarChart3 className="w-7 h-7 text-primary" /></div>Informes y Estadísticas</h1>
+            <p className="text-muted-foreground mt-1">Análisis con filtros Filial → Sector → Modelo → Impresora</p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={exportToCSV} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" />
-              Exportar CSV
-            </Button>
-            <Button onClick={exportToPDF} className="gap-2">
-              <FileText className="w-4 h-4" />
-              Exportar PDF
-            </Button>
+            <Button onClick={exportToCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV/Excel</Button>
+            <Button onClick={exportToPDF} className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Cascade Filters */}
         <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              Filtros
-            </CardTitle>
-          </CardHeader>
+          <CardHeader className="pb-4"><CardTitle className="text-lg flex items-center gap-2"><Filter className="w-5 h-5" />Filtros (Filial → Sector → Modelo → Impresora)</CardTitle></CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
               <div className="space-y-2">
-                <Label className="text-sm">Sector</Label>
-                <Select value={filterSector} onValueChange={setFilterSector}>
-                  <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="all">Todos los sectores</SelectItem>
-                    {sectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
                 <Label className="text-sm">Filial</Label>
-                <Select value={filterFilial} onValueChange={setFilterFilial}>
+                <Select value={filterFilial} onValueChange={v => { setFilterFilial(v); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); }}>
                   <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="all">Todas las filiales</SelectItem>
-                    {filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent className="bg-popover"><SelectItem value="all">Todas las filiales</SelectItem>{filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-
+              <div className="space-y-2">
+                <Label className="text-sm">Sector</Label>
+                <Select value={filterSector} onValueChange={v => { setFilterSector(v); setFilterModelo('all'); setFilterPrinter('all'); }}>
+                  <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent className="bg-popover"><SelectItem value="all">Todos los sectores</SelectItem>{filteredSectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label className="text-sm">Modelo</Label>
-                <Select value={filterModelo} onValueChange={setFilterModelo}>
+                <Select value={filterModelo} onValueChange={v => { setFilterModelo(v); setFilterPrinter('all'); }}>
                   <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="all">Todos los modelos</SelectItem>
-                    {uniqueModelos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent className="bg-popover"><SelectItem value="all">Todos</SelectItem>{filteredModelos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label className="text-sm">Impresora</Label>
-                <Input placeholder="Filtrar lista..." value={printerSearch} onChange={e => setPrinterSearch(e.target.value)} className="mb-1" />
                 <Select value={filterPrinter} onValueChange={setFilterPrinter}>
                   <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="all">Todas</SelectItem>
-                    {impresoras
-                      .filter(p => {
-                        if (!printerSearch.trim()) return true;
-                        const q = printerSearch.toLowerCase();
-                        return p.nombre.toLowerCase().includes(q) || p.serie.toLowerCase().includes(q) || p.modelo.toLowerCase().includes(q);
-                      })
-                      .map(p => <SelectItem key={p.id} value={p.id}>{p.nombre} - {p.modelo} ({p.serie})</SelectItem>)}
-                  </SelectContent>
+                  <SelectContent className="bg-popover"><SelectItem value="all">Todas</SelectItem>{filteredPrinterList.map(p => <SelectItem key={p.id} value={p.id}>{p.nombre} ({p.serie})</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              
-              <div className="space-y-2">
-                <Label className="text-sm">Desde</Label>
-                <Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} />
-              </div>
-              
-              <div className="space-y-2">
-                <Label className="text-sm">Hasta</Label>
-                <Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} />
-              </div>
+              <div className="space-y-2"><Label className="text-sm">Desde</Label><Input type="date" value={filterDateFrom} onChange={e => setFilterDateFrom(e.target.value)} /></div>
+              <div className="space-y-2"><Label className="text-sm">Hasta</Label><Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
             </div>
-            
             <div className="flex justify-between items-center mt-4">
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
-                <ArrowUpDown className="w-4 h-4" />
-                {sortOrder === 'desc' ? 'Mayor a menor' : 'Menor a mayor'}
-              </Button>
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2 text-destructive hover:text-destructive">
-                  <XCircle className="w-4 h-4" />
-                  Borrar filtros
-                </Button>
-              )}
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}><ArrowUpDown className="w-4 h-4" />{sortOrder === 'desc' ? 'Mayor a menor' : 'Menor a mayor'}</Button>
+              {hasActiveFilters && <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-2 text-destructive hover:text-destructive"><XCircle className="w-4 h-4" />Borrar filtros</Button>}
             </div>
           </CardContent>
         </Card>
 
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          </div>
-        ) : (
+        {loading ? <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div> : (
           <>
-            {/* Stats Summary */}
+            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <Card className="hover-lift">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-primary/10"><FileText className="w-6 h-6 text-primary" /></div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Total Páginas</p>
-                      <p className="text-2xl font-bold">{totalPaginas.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="hover-lift">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-muted"><Printer className="w-6 h-6 text-muted-foreground" /></div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Páginas B/N</p>
-                      <p className="text-2xl font-bold">{totalPaginasNegro.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="hover-lift">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-info/10"><PieChart className="w-6 h-6 text-info" /></div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Páginas Color</p>
-                      <p className="text-2xl font-bold">{totalPaginasColor.toLocaleString()}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="hover-lift">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-success/10"><TrendingUp className="w-6 h-6 text-success" /></div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Promedio/Imp.</p>
-                      <p className="text-2xl font-bold">{filteredImpresoras.length > 0 ? Math.round(totalPaginas / filteredImpresoras.length).toLocaleString() : 0}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="hover-lift">
-                <CardContent className="pt-6">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-warning/10"><Wrench className="w-6 h-6 text-warning" /></div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Piezas Alerta</p>
-                      <p className="text-2xl font-bold">{filteredPiezas.filter(p => p.porcentaje_usado >= 70).length}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              <Card className="hover-lift"><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="p-3 rounded-xl bg-primary/10"><FileText className="w-6 h-6 text-primary" /></div><div><p className="text-sm text-muted-foreground">Total Páginas</p><p className="text-2xl font-bold">{totalPaginas.toLocaleString()}</p></div></div></CardContent></Card>
+              <Card className="hover-lift"><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="p-3 rounded-xl bg-muted"><Printer className="w-6 h-6 text-muted-foreground" /></div><div><p className="text-sm text-muted-foreground">Páginas B/N</p><p className="text-2xl font-bold">{totalPaginasNegro.toLocaleString()}</p></div></div></CardContent></Card>
+              <Card className="hover-lift"><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="p-3 rounded-xl bg-info/10"><PieChart className="w-6 h-6 text-info" /></div><div><p className="text-sm text-muted-foreground">Páginas Color</p><p className="text-2xl font-bold">{totalPaginasColor.toLocaleString()}</p></div></div></CardContent></Card>
+              <Card className="hover-lift"><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="p-3 rounded-xl bg-success/10"><TrendingUp className="w-6 h-6 text-success" /></div><div><p className="text-sm text-muted-foreground">Promedio/Imp.</p><p className="text-2xl font-bold">{filteredImpresoras.length > 0 ? Math.round(totalPaginas / filteredImpresoras.length).toLocaleString() : 0}</p></div></div></CardContent></Card>
+              <Card className="hover-lift"><CardContent className="pt-6"><div className="flex items-center gap-4"><div className="p-3 rounded-xl bg-warning/10"><Wrench className="w-6 h-6 text-warning" /></div><div><p className="text-sm text-muted-foreground">Piezas Alerta</p><p className="text-2xl font-bold">{filteredPiezas.filter(p => p.porcentaje_usado >= 70).length}</p></div></div></CardContent></Card>
             </div>
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" />Páginas por Impresora</CardTitle>
-                  <CardDescription>Top 10 impresoras con mayor consumo</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5 text-primary" />Páginas por Impresora</CardTitle></CardHeader>
                 <CardContent>
                   {printerChartData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
@@ -522,79 +261,42 @@ export default function Informes() {
                         <Bar dataKey="color" stackId="a" fill="hsl(var(--primary))" name="Color" />
                       </BarChart>
                     </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">No hay datos disponibles</div>
-                  )}
+                  ) : <div className="h-[300px] flex items-center justify-center text-muted-foreground">No hay datos</div>}
                 </CardContent>
               </Card>
-
               <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2"><PieChart className="w-5 h-5 text-primary" />Distribución B/N vs Color</CardTitle>
-                  <CardDescription>Proporción de páginas impresas</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle className="flex items-center gap-2"><PieChart className="w-5 h-5 text-primary" />Distribución B/N vs Color</CardTitle></CardHeader>
                 <CardContent>
                   {pieData.length > 0 ? (
                     <ResponsiveContainer width="100%" height={300}>
-                      <RechartsPie>
-                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value"
-                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>
-                          {pieData.map((_, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }}
-                          formatter={(value: number) => value.toLocaleString()} />
-                        <Legend />
-                      </RechartsPie>
+                      <RechartsPie><Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}>{pieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: '8px' }} formatter={(v: number) => v.toLocaleString()} /><Legend /></RechartsPie>
                     </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[300px] flex items-center justify-center text-muted-foreground">No hay datos disponibles</div>
-                  )}
+                  ) : <div className="h-[300px] flex items-center justify-center text-muted-foreground">No hay datos</div>}
                 </CardContent>
               </Card>
             </div>
 
-            {/* Table */}
+            {/* Detail Table */}
             <Card>
-              <CardHeader>
-                <CardTitle>Detalle por Impresora</CardTitle>
-                <CardDescription>{filteredImpresoras.length} impresoras en el análisis</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle>Detalle por Impresora</CardTitle><CardDescription>{filteredImpresoras.length} impresoras</CardDescription></CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Impresora</TableHead>
-                        <TableHead>Modelo</TableHead>
-                        <TableHead>Sector</TableHead>
-                        <TableHead>Filial</TableHead>
-                        <TableHead>Tipo</TableHead>
-                        <TableHead className="text-right">Páginas B/N</TableHead>
-                        <TableHead className="text-right">Páginas Color</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead>Impresora</TableHead><TableHead>Modelo</TableHead><TableHead>Filial</TableHead><TableHead>Sector</TableHead><TableHead>Tipo</TableHead><TableHead className="text-right">Pág. B/N</TableHead><TableHead className="text-right">Pág. Color</TableHead><TableHead className="text-right">Total</TableHead></TableRow></TableHeader>
                     <TableBody>
                       {sortedImpresoras.map(imp => {
-                        const paginasNegro = imp.contador_negro_actual - imp.contador_negro_inicial;
-                        const paginasColor = imp.contador_color_actual - imp.contador_color_inicial;
-                        const total = paginasNegro + paginasColor;
-
+                        const pN = imp.contador_negro_actual - imp.contador_negro_inicial;
+                        const pC = imp.contador_color_actual - imp.contador_color_inicial;
                         return (
                           <TableRow key={imp.id}>
-                            <TableCell>
-                              <div>
-                                <span className="font-medium">{imp.nombre}</span>
-                                <p className="text-xs text-muted-foreground">{imp.serie}</p>
-                              </div>
-                            </TableCell>
+                            <TableCell><div><span className="font-medium">{imp.nombre}</span><p className="text-xs text-muted-foreground">{imp.serie}</p></div></TableCell>
                             <TableCell>{imp.modelo}</TableCell>
-                            <TableCell className="text-muted-foreground">{getSectorName(imp.sector_id)}</TableCell>
                             <TableCell className="text-muted-foreground">{getFilialName(imp.filial_id)}</TableCell>
+                            <TableCell className="text-muted-foreground">{getSectorName(imp.sector_id)}</TableCell>
                             <TableCell><Badge variant="outline">{imp.tipo_impresion === 'monocromatico' ? 'B/N' : 'Color'}</Badge></TableCell>
-                            <TableCell className="text-right font-mono">{paginasNegro.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-mono">{paginasColor.toLocaleString()}</TableCell>
-                            <TableCell className="text-right font-mono font-semibold">{total.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-mono">{pN.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-mono">{pC.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold">{(pN + pC).toLocaleString()}</TableCell>
                           </TableRow>
                         );
                       })}
@@ -604,47 +306,23 @@ export default function Informes() {
               </CardContent>
             </Card>
 
-            {/* Recent Activity with user info */}
+            {/* Recent Activity */}
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <User className="w-5 h-5 text-primary" />
-                  Historial de Cargas Recientes
-                </CardTitle>
-                <CardDescription>Quién realizó cada registro de contadores</CardDescription>
-              </CardHeader>
+              <CardHeader><CardTitle className="flex items-center gap-2"><User className="w-5 h-5 text-primary" />Historial de Cargas Recientes</CardTitle></CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha/Hora</TableHead>
-                        <TableHead>Impresora</TableHead>
-                        <TableHead className="text-right">Negro</TableHead>
-                        <TableHead className="text-right">Color</TableHead>
-                        <TableHead>Registrado Por</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead>Fecha/Hora</TableHead><TableHead>Impresora</TableHead><TableHead className="text-right">Negro</TableHead><TableHead className="text-right">Color</TableHead><TableHead>Registrado Por</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {lecturas
-                        .filter(l => filteredPrinterIds.has(l.impresora_id))
-                        .slice(0, 20)
-                        .map(l => (
-                          <TableRow key={l.id}>
-                            <TableCell className="whitespace-nowrap text-sm">
-                              {new Date(l.fecha_lectura).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                            </TableCell>
-                            <TableCell className="font-medium">{l.impresoras?.nombre || '-'}</TableCell>
-                            <TableCell className="text-right font-mono">{l.contador_negro?.toLocaleString() ?? '-'}</TableCell>
-                            <TableCell className="text-right font-mono">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-1">
-                                <User className="w-3 h-3 text-muted-foreground" />
-                                <span className="text-sm">{getProfileName(l.registrado_por)}</span>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
+                      {lecturas.filter(l => filteredPrinterIds.has(l.impresora_id)).slice(0, 20).map(l => (
+                        <TableRow key={l.id}>
+                          <TableCell className="whitespace-nowrap text-sm">{new Date(l.fecha_lectura).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                          <TableCell className="font-medium">{l.impresoras?.nombre || '-'}</TableCell>
+                          <TableCell className="text-right font-mono">{l.contador_negro?.toLocaleString() ?? '-'}</TableCell>
+                          <TableCell className="text-right font-mono">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
+                          <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(l.registrado_por)}</span></div></TableCell>
+                        </TableRow>
+                      ))}
                     </TableBody>
                   </Table>
                 </div>

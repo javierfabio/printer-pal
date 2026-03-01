@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -40,17 +41,12 @@ interface Impresora {
   descripcion: string | null;
   estado: EstadoImpresora;
   editado_por: string | null;
+  lectura_ip: boolean;
+  ip_address: string | null;
 }
 
-interface Sector {
-  id: string;
-  nombre: string;
-}
-
-interface Filial {
-  id: string;
-  nombre: string;
-}
+interface Sector { id: string; nombre: string; }
+interface Filial { id: string; nombre: string; }
 
 const impresoraSchema = z.object({
   serie: z.string().min(1, 'La serie es requerida').max(50),
@@ -81,7 +77,6 @@ export default function Impresoras() {
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
   const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
   
-  // Form state
   const [formData, setFormData] = useState({
     serie: '',
     nombre: '',
@@ -94,48 +89,32 @@ export default function Impresoras() {
     contador_color_inicial: 0,
     descripcion: '',
     estado: 'activa' as EstadoImpresora,
+    lectura_ip: false,
+    ip_address: '',
   });
 
-  // New location dialog
   const [newSectorOpen, setNewSectorOpen] = useState(false);
   const [newFilialOpen, setNewFilialOpen] = useState(false);
   const [newSectorName, setNewSectorName] = useState('');
   const [newFilialName, setNewFilialName] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    
     const [impResp, secResp, filResp] = await Promise.all([
       supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)').order('created_at', { ascending: false }),
       supabase.from('sectores').select('*').eq('activo', true),
       supabase.from('filiales').select('*').eq('activo', true),
     ]);
-
     if (impResp.data) setImpresoras(impResp.data as any[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
-    
     setLoading(false);
   };
 
   const resetForm = () => {
-    setFormData({
-      serie: '',
-      nombre: '',
-      modelo: '',
-      tipo_consumo: 'tinta',
-      tipo_impresion: 'color',
-      sector_id: '',
-      filial_id: '',
-      contador_negro_inicial: 0,
-      contador_color_inicial: 0,
-      descripcion: '',
-      estado: 'activa',
-    });
+    setFormData({ serie: '', nombre: '', modelo: '', tipo_consumo: 'tinta', tipo_impresion: 'color', sector_id: '', filial_id: '', contador_negro_inicial: 0, contador_color_inicial: 0, descripcion: '', estado: 'activa', lectura_ip: false, ip_address: '' });
     setEditingPrinter(null);
   };
 
@@ -153,86 +132,51 @@ export default function Impresoras() {
       contador_color_inicial: printer.contador_color_inicial,
       descripcion: printer.descripcion || '',
       estado: printer.estado,
+      lectura_ip: printer.lectura_ip || false,
+      ip_address: printer.ip_address || '',
     });
     setDialogOpen(true);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     const validation = impresoraSchema.safeParse({
       ...formData,
       sector_id: formData.sector_id || null,
       filial_id: formData.filial_id || null,
       descripcion: formData.descripcion || null,
     });
-
     if (!validation.success) {
-      toast({
-        variant: 'destructive',
-        title: 'Error de validación',
-        description: validation.error.errors[0].message,
-      });
+      toast({ variant: 'destructive', title: 'Error de validación', description: validation.error.errors[0].message });
       return;
     }
 
     setSaving(true);
-
     const dataToSave = {
       ...formData,
       sector_id: formData.sector_id || null,
       filial_id: formData.filial_id || null,
       descripcion: formData.descripcion || null,
       editado_por: user?.id,
+      ip_address: formData.lectura_ip ? (formData.ip_address || null) : null,
     };
 
     if (editingPrinter) {
-      // Track changes for history
       const changes: { campo: string; anterior: string; nuevo: string }[] = [];
-      
-      if (editingPrinter.sector_id !== dataToSave.sector_id) {
-        changes.push({
-          campo: 'sector',
-          anterior: sectores.find(s => s.id === editingPrinter.sector_id)?.nombre || 'Sin sector',
-          nuevo: sectores.find(s => s.id === dataToSave.sector_id)?.nombre || 'Sin sector',
-        });
-      }
-      if (editingPrinter.estado !== dataToSave.estado) {
-        changes.push({
-          campo: 'estado',
-          anterior: editingPrinter.estado,
-          nuevo: dataToSave.estado,
-        });
-      }
-      if (editingPrinter.filial_id !== dataToSave.filial_id) {
-        changes.push({
-          campo: 'filial',
-          anterior: filiales.find(f => f.id === editingPrinter.filial_id)?.nombre || 'Sin filial',
-          nuevo: filiales.find(f => f.id === dataToSave.filial_id)?.nombre || 'Sin filial',
-        });
-      }
+      if (editingPrinter.sector_id !== dataToSave.sector_id) changes.push({ campo: 'sector', anterior: sectores.find(s => s.id === editingPrinter.sector_id)?.nombre || 'Sin sector', nuevo: sectores.find(s => s.id === dataToSave.sector_id)?.nombre || 'Sin sector' });
+      if (editingPrinter.estado !== dataToSave.estado) changes.push({ campo: 'estado', anterior: editingPrinter.estado, nuevo: dataToSave.estado });
+      if (editingPrinter.filial_id !== dataToSave.filial_id) changes.push({ campo: 'filial', anterior: filiales.find(f => f.id === editingPrinter.filial_id)?.nombre || 'Sin filial', nuevo: filiales.find(f => f.id === dataToSave.filial_id)?.nombre || 'Sin filial' });
 
-      const { error } = await supabase
-        .from('impresoras')
-        .update({
-          ...dataToSave,
-          contador_negro_actual: editingPrinter.contador_negro_actual,
-          contador_color_actual: editingPrinter.contador_color_actual,
-        })
-        .eq('id', editingPrinter.id);
+      const { error } = await supabase.from('impresoras').update({
+        ...dataToSave,
+        contador_negro_actual: editingPrinter.contador_negro_actual,
+        contador_color_actual: editingPrinter.contador_color_actual,
+      }).eq('id', editingPrinter.id);
 
-      if (error) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-      } else {
-        // Save history
+      if (error) { toast({ variant: 'destructive', title: 'Error', description: error.message }); }
+      else {
         for (const change of changes) {
-          await supabase.from('historial_cambios').insert({
-            impresora_id: editingPrinter.id,
-            campo_modificado: change.campo,
-            valor_anterior: change.anterior,
-            valor_nuevo: change.nuevo,
-            usuario_id: user?.id,
-          });
+          await supabase.from('historial_cambios').insert({ impresora_id: editingPrinter.id, campo_modificado: change.campo, valor_anterior: change.anterior, valor_nuevo: change.nuevo, usuario_id: user?.id });
         }
         toast({ title: 'Éxito', description: 'Impresora actualizada correctamente' });
       }
@@ -242,16 +186,10 @@ export default function Impresoras() {
         contador_negro_actual: dataToSave.contador_negro_inicial,
         contador_color_actual: dataToSave.contador_color_inicial,
       });
-
       if (error) {
-        if (error.message.includes('duplicate key')) {
-          toast({ variant: 'destructive', title: 'Error', description: 'Ya existe una impresora con esa serie' });
-        } else {
-          toast({ variant: 'destructive', title: 'Error', description: error.message });
-        }
-      } else {
-        toast({ title: 'Éxito', description: 'Impresora registrada correctamente' });
-      }
+        if (error.message.includes('duplicate key')) toast({ variant: 'destructive', title: 'Error', description: 'Ya existe una impresora con esa serie' });
+        else toast({ variant: 'destructive', title: 'Error', description: error.message });
+      } else toast({ title: 'Éxito', description: 'Impresora registrada correctamente' });
     }
 
     setSaving(false);
@@ -262,49 +200,19 @@ export default function Impresoras() {
 
   const handleAddSector = async () => {
     if (!newSectorName.trim()) return;
-    
-    const { data, error } = await supabase
-      .from('sectores')
-      .insert({ nombre: newSectorName.trim() })
-      .select()
-      .single();
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } else if (data) {
-      setSectores([...sectores, data]);
-      setFormData({ ...formData, sector_id: data.id });
-      setNewSectorOpen(false);
-      setNewSectorName('');
-      toast({ title: 'Éxito', description: 'Sector creado' });
-    }
+    const { data, error } = await supabase.from('sectores').insert({ nombre: newSectorName.trim() }).select().single();
+    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
+    else if (data) { setSectores([...sectores, data]); setFormData({ ...formData, sector_id: data.id }); setNewSectorOpen(false); setNewSectorName(''); toast({ title: 'Éxito', description: 'Sector creado' }); }
   };
 
   const handleAddFilial = async () => {
     if (!newFilialName.trim()) return;
-    
-    const { data, error } = await supabase
-      .from('filiales')
-      .insert({ nombre: newFilialName.trim() })
-      .select()
-      .single();
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } else if (data) {
-      setFiliales([...filiales, data]);
-      setFormData({ ...formData, filial_id: data.id });
-      setNewFilialOpen(false);
-      setNewFilialName('');
-      toast({ title: 'Éxito', description: 'Filial creada' });
-    }
+    const { data, error } = await supabase.from('filiales').insert({ nombre: newFilialName.trim() }).select().single();
+    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
+    else if (data) { setFiliales([...filiales, data]); setFormData({ ...formData, filial_id: data.id }); setNewFilialOpen(false); setNewFilialName(''); toast({ title: 'Éxito', description: 'Filial creada' }); }
   };
 
-  const openHistorial = (printer: Impresora) => {
-    setSelectedPrinterId(printer.id);
-    setSelectedPrinterName(printer.nombre);
-    setHistorialOpen(true);
-  };
+  const openHistorial = (printer: Impresora) => { setSelectedPrinterId(printer.id); setSelectedPrinterName(printer.nombre); setHistorialOpen(true); };
 
   const filteredImpresoras = impresoras.filter(imp =>
     imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
@@ -320,67 +228,37 @@ export default function Impresoras() {
       baja: { label: 'Baja', className: 'status-disabled' },
     };
     const status = statusMap[estado];
-    return (
-      <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', status.className)}>
-        {status.label}
-      </span>
-    );
+    return <span className={cn('px-2 py-1 rounded-full text-xs font-medium border', status.className)}>{status.label}</span>;
   };
 
   const exportImpresorasCSV = () => {
     const data = filteredImpresoras.map(imp => ({
-      Serie: imp.serie,
-      Nombre: imp.nombre,
-      Modelo: imp.modelo,
-      TipoImpresion: imp.tipo_impresion,
-      TipoConsumo: imp.tipo_consumo,
-      Estado: imp.estado,
-      Sector: (imp as any).sectores?.nombre || '-',
-      Filial: (imp as any).filiales?.nombre || '-',
-      ContadorNegro: imp.contador_negro_actual,
-      ContadorColor: imp.contador_color_actual,
+      Serie: imp.serie, Nombre: imp.nombre, Modelo: imp.modelo, TipoImpresion: imp.tipo_impresion, TipoConsumo: imp.tipo_consumo, Estado: imp.estado,
+      Sector: (imp as any).sectores?.nombre || '-', Filial: (imp as any).filiales?.nombre || '-', ContadorNegro: imp.contador_negro_actual, ContadorColor: imp.contador_color_actual,
+      LecturaIP: imp.lectura_ip ? 'Sí' : 'No',
     }));
     if (data.length === 0) return;
     const headers = Object.keys(data[0]).join(',');
     const rows = data.map(row => Object.values(row).map(v => `"${v}"`).join(',')).join('\n');
-    const csv = `${headers}\n${rows}`;
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([`${headers}\n${rows}`], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `impresoras_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
+    toast({ title: 'Exportado' });
   };
 
   const exportImpresorasPDF = () => {
     const doc = new jsPDF('landscape');
     const startY = addPDFHeader(doc, 'Listado de Impresoras', `Total: ${filteredImpresoras.length} impresoras`);
-
-    const tableData = filteredImpresoras.map(imp => [
-      imp.serie,
-      imp.nombre,
-      imp.modelo,
-      imp.tipo_impresion === 'color' ? 'Color' : 'Monocromático',
-      imp.tipo_consumo === 'toner' ? 'Tóner' : 'Tinta',
-      imp.estado,
-      (imp as any).sectores?.nombre || '-',
-      (imp as any).filiales?.nombre || '-',
-      imp.contador_negro_actual?.toLocaleString() ?? '-',
-      imp.contador_color_actual?.toLocaleString() ?? '-',
-    ]);
-
     autoTable(doc, {
-      startY,
-      head: [['Serie', 'Nombre', 'Modelo', 'Tipo Imp.', 'Consumo', 'Estado', 'Sector', 'Filial', 'Negro', 'Color']],
-      body: tableData,
-      theme: 'striped',
-      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
-      styles: { fontSize: 7 },
+      startY, head: [['Serie', 'Nombre', 'Modelo', 'Tipo Imp.', 'Consumo', 'Estado', 'Filial', 'Sector', 'Negro', 'Color']],
+      body: filteredImpresoras.map(imp => [imp.serie, imp.nombre, imp.modelo, imp.tipo_impresion === 'color' ? 'Color' : 'Monocromático', imp.tipo_consumo === 'toner' ? 'Tóner' : 'Tinta', imp.estado, (imp as any).filiales?.nombre || '-', (imp as any).sectores?.nombre || '-', imp.contador_negro_actual?.toLocaleString() ?? '-', imp.contador_color_actual?.toLocaleString() ?? '-']),
+      theme: 'striped', headStyles: { fillColor: [59, 130, 246], textColor: 255 }, styles: { fontSize: 7 },
     });
-
     addPDFPageNumbers(doc);
     doc.save(`impresoras_${new Date().toISOString().split('T')[0]}.pdf`);
-    toast({ title: 'PDF Generado', description: 'El listado ha sido descargado.' });
+    toast({ title: 'PDF Generado' });
   };
 
   const isAdmin = role === 'admin';
@@ -388,251 +266,130 @@ export default function Impresoras() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold">Impresoras</h1>
             <p className="text-muted-foreground">Gestión y registro de equipos</p>
           </div>
-          
           <div className="flex gap-2">
-            <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2">
-              <Download className="w-4 h-4" />
-              CSV
-            </Button>
-            <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2">
-              <FileText className="w-4 h-4" />
-              PDF
-            </Button>
-          {isAdmin && (
-            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Nueva Impresora
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>
-                    {editingPrinter ? 'Editar Impresora' : 'Registrar Nueva Impresora'}
-                  </DialogTitle>
-                </DialogHeader>
-                
-                <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="serie">Serie (Único) *</Label>
-                      <Input
-                        id="serie"
-                        value={formData.serie}
-                        onChange={e => setFormData({ ...formData, serie: e.target.value })}
-                        placeholder="SN-123456"
-                        required
-                        disabled={!!editingPrinter}
-                      />
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label htmlFor="nombre">Nombre *</Label>
-                      <Input
-                        id="nombre"
-                        value={formData.nombre}
-                        onChange={e => setFormData({ ...formData, nombre: e.target.value })}
-                        placeholder="Impresora Principal"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="modelo">Modelo *</Label>
-                      <Input
-                        id="modelo"
-                        value={formData.modelo}
-                        onChange={e => setFormData({ ...formData, modelo: e.target.value })}
-                        placeholder="HP LaserJet Pro"
-                        required
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Tipo de Consumo *</Label>
-                      <Select
-                        value={formData.tipo_consumo}
-                        onValueChange={v => setFormData({ ...formData, tipo_consumo: v as TipoConsumo })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="tinta">Tinta</SelectItem>
-                          <SelectItem value="toner">Tóner</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Tipo de Impresión *</Label>
-                      <Select
-                        value={formData.tipo_impresion}
-                        onValueChange={v => setFormData({ ...formData, tipo_impresion: v as TipoImpresion })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monocromatico">Monocromático</SelectItem>
-                          <SelectItem value="color">Color</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label>Estado *</Label>
-                      <Select
-                        value={formData.estado}
-                        onValueChange={v => setFormData({ ...formData, estado: v as EstadoImpresora })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="activa">Activa</SelectItem>
-                          <SelectItem value="inactiva">Inactiva</SelectItem>
-                          <SelectItem value="en_reparacion">En Reparación</SelectItem>
-                          <SelectItem value="baja">Baja</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label>Sector</Label>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setNewSectorOpen(true)}>
-                          + Nuevo
-                        </Button>
+            <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV</Button>
+            <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+            {isAdmin && (
+              <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+                <DialogTrigger asChild>
+                  <Button className="gap-2"><Plus className="w-4 h-4" />Nueva Impresora</Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingPrinter ? 'Editar Impresora' : 'Registrar Nueva Impresora'}</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="serie">Serie (Único) *</Label>
+                        <Input id="serie" value={formData.serie} onChange={e => setFormData({ ...formData, serie: e.target.value })} placeholder="SN-123456" required disabled={!!editingPrinter} />
                       </div>
-                      <Select
-                        value={formData.sector_id}
-                        onValueChange={v => setFormData({ ...formData, sector_id: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar sector" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {sectores.map(s => (
-                            <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label>Filial</Label>
-                        <Button type="button" variant="ghost" size="sm" onClick={() => setNewFilialOpen(true)}>
-                          + Nueva
-                        </Button>
+                      <div className="space-y-2">
+                        <Label htmlFor="nombre">Nombre *</Label>
+                        <Input id="nombre" value={formData.nombre} onChange={e => setFormData({ ...formData, nombre: e.target.value })} placeholder="Impresora Principal" required />
                       </div>
-                      <Select
-                        value={formData.filial_id}
-                        onValueChange={v => setFormData({ ...formData, filial_id: v })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar filial" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {filiales.map(f => (
-                            <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="space-y-2">
+                        <Label htmlFor="modelo">Modelo *</Label>
+                        <Input id="modelo" value={formData.modelo} onChange={e => setFormData({ ...formData, modelo: e.target.value })} placeholder="HP LaserJet Pro" required />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tipo de Consumo *</Label>
+                        <Select value={formData.tipo_consumo} onValueChange={v => setFormData({ ...formData, tipo_consumo: v as TipoConsumo })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="tinta">Tinta</SelectItem><SelectItem value="toner">Tóner</SelectItem></SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Tipo de Impresión *</Label>
+                        <Select value={formData.tipo_impresion} onValueChange={v => setFormData({ ...formData, tipo_impresion: v as TipoImpresion })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="monocromatico">Monocromático</SelectItem><SelectItem value="color">Color</SelectItem></SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Estado *</Label>
+                        <Select value={formData.estado} onValueChange={v => setFormData({ ...formData, estado: v as EstadoImpresora })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent><SelectItem value="activa">Activa</SelectItem><SelectItem value="inactiva">Inactiva</SelectItem><SelectItem value="en_reparacion">En Reparación</SelectItem><SelectItem value="baja">Baja</SelectItem></SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center"><Label>Filial</Label><Button type="button" variant="ghost" size="sm" onClick={() => setNewFilialOpen(true)}>+ Nueva</Button></div>
+                        <Select value={formData.filial_id} onValueChange={v => setFormData({ ...formData, filial_id: v })}>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar filial" /></SelectTrigger>
+                          <SelectContent>{filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center"><Label>Sector</Label><Button type="button" variant="ghost" size="sm" onClick={() => setNewSectorOpen(true)}>+ Nuevo</Button></div>
+                        <Select value={formData.sector_id} onValueChange={v => setFormData({ ...formData, sector_id: v })}>
+                          <SelectTrigger><SelectValue placeholder="Seleccionar sector" /></SelectTrigger>
+                          <SelectContent>{sectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="contador_negro">Contador Negro Inicial</Label>
+                        <Input id="contador_negro" type="number" min="0" value={formData.contador_negro_inicial} onChange={e => setFormData({ ...formData, contador_negro_inicial: parseInt(e.target.value) || 0 })} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="contador_color">Contador Color Inicial</Label>
+                        <Input id="contador_color" type="number" min="0" value={formData.contador_color_inicial} onChange={e => setFormData({ ...formData, contador_color_inicial: parseInt(e.target.value) || 0 })} disabled={formData.tipo_impresion === 'monocromatico'} />
+                      </div>
+                    </div>
+
+                    {/* IP Reading */}
+                    <div className="p-4 rounded-lg border bg-muted/30 space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="lectura_ip" checked={formData.lectura_ip} onCheckedChange={(checked) => setFormData({ ...formData, lectura_ip: !!checked, ip_address: checked ? formData.ip_address : '' })} />
+                        <Label htmlFor="lectura_ip" className="cursor-pointer">Lectura automática por IP</Label>
+                      </div>
+                      {formData.lectura_ip && (
+                        <div className="space-y-2">
+                          <Label>IP de impresora *</Label>
+                          <Input value={formData.ip_address} onChange={e => setFormData({ ...formData, ip_address: e.target.value })} placeholder="192.168.1.45" pattern="^(?:\d{1,3}\.){3}\d{1,3}$" />
+                          <p className="text-xs text-muted-foreground">Usado para lectura automática (ej: impresoras Ricoh en red)</p>
+                        </div>
+                      )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="contador_negro">Contador Negro Inicial</Label>
-                      <Input
-                        id="contador_negro"
-                        type="number"
-                        min="0"
-                        value={formData.contador_negro_inicial}
-                        onChange={e => setFormData({ ...formData, contador_negro_inicial: parseInt(e.target.value) || 0 })}
-                      />
+                      <Label htmlFor="descripcion">Descripción</Label>
+                      <Textarea id="descripcion" value={formData.descripcion} onChange={e => setFormData({ ...formData, descripcion: e.target.value })} placeholder="Notas adicionales..." rows={3} />
                     </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="contador_color">Contador Color Inicial</Label>
-                      <Input
-                        id="contador_color"
-                        type="number"
-                        min="0"
-                        value={formData.contador_color_inicial}
-                        onChange={e => setFormData({ ...formData, contador_color_inicial: parseInt(e.target.value) || 0 })}
-                        disabled={formData.tipo_impresion === 'monocromatico'}
-                      />
+                    <div className="flex justify-end gap-2 pt-4">
+                      <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                      <Button type="submit" disabled={saving}>{saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingPrinter ? 'Guardar Cambios' : 'Registrar'}</Button>
                     </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="descripcion">Descripción</Label>
-                    <Textarea
-                      id="descripcion"
-                      value={formData.descripcion}
-                      onChange={e => setFormData({ ...formData, descripcion: e.target.value })}
-                      placeholder="Notas adicionales sobre la impresora..."
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button type="submit" disabled={saving}>
-                      {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      {editingPrinter ? 'Guardar Cambios' : 'Registrar'}
-                    </Button>
-                  </div>
-                </form>
-              </DialogContent>
-            </Dialog>
-          )}
+                  </form>
+                </DialogContent>
+              </Dialog>
+            )}
           </div>
         </div>
 
-        {/* Search */}
         <Card>
           <CardContent className="pt-6">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por nombre, serie o modelo..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-10"
-              />
+              <Input placeholder="Buscar por nombre, serie o modelo..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
             </div>
           </CardContent>
         </Card>
 
-        {/* Table */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Printer className="w-5 h-5" />
-              Lista de Impresoras ({filteredImpresoras.length})
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><Printer className="w-5 h-5" />Lista de Impresoras ({filteredImpresoras.length})</CardTitle>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
+              <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
             ) : filteredImpresoras.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Printer className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>No se encontraron impresoras</p>
-              </div>
+              <div className="text-center py-8 text-muted-foreground"><Printer className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>No se encontraron impresoras</p></div>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -643,9 +400,10 @@ export default function Impresoras() {
                       <TableHead>Modelo</TableHead>
                       <TableHead>Tipo</TableHead>
                       <TableHead>Consumo</TableHead>
-                      <TableHead>Sector</TableHead>
                       <TableHead>Filial</TableHead>
+                      <TableHead>Sector</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead>IP</TableHead>
                       <TableHead>Contadores</TableHead>
                       <TableHead className="text-right">Acciones</TableHead>
                     </TableRow>
@@ -658,18 +416,14 @@ export default function Impresoras() {
                         <TableCell>{imp.modelo}</TableCell>
                         <TableCell className="capitalize">{imp.tipo_impresion}</TableCell>
                         <TableCell className="capitalize">{imp.tipo_consumo}</TableCell>
-                        <TableCell className="text-muted-foreground">{(imp as any).sectores?.nombre || '-'}</TableCell>
                         <TableCell className="text-muted-foreground">{(imp as any).filiales?.nombre || '-'}</TableCell>
+                        <TableCell className="text-muted-foreground">{(imp as any).sectores?.nombre || '-'}</TableCell>
                         <TableCell>{getStatusBadge(imp.estado)}</TableCell>
+                        <TableCell className="text-muted-foreground text-xs">{imp.lectura_ip ? imp.ip_address || 'Sí' : '-'}</TableCell>
                         <TableCell>
                           <div className="text-sm">
                             {imp.tipo_impresion === 'color' ? (
-                              <>
-                                <span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}
-                                {imp.tipo_consumo === 'toner' && (
-                                  <> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
-                                )}
-                              </>
+                              <><span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}{imp.tipo_consumo === 'toner' && (<> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>)}</>
                             ) : (
                               <><span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
                             )}
@@ -677,14 +431,8 @@ export default function Impresoras() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            {isAdmin && (
-                              <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}>
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                            )}
-                            <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}>
-                              <History className="w-4 h-4" />
-                            </Button>
+                            {isAdmin && <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
+                            <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -696,53 +444,27 @@ export default function Impresoras() {
           </CardContent>
         </Card>
 
-        {/* New Sector Dialog */}
         <Dialog open={newSectorOpen} onOpenChange={setNewSectorOpen}>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nuevo Sector</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Nuevo Sector</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <Input
-                placeholder="Nombre del sector"
-                value={newSectorName}
-                onChange={e => setNewSectorName(e.target.value)}
-              />
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setNewSectorOpen(false)}>Cancelar</Button>
-                <Button onClick={handleAddSector}>Crear</Button>
-              </div>
+              <Input placeholder="Nombre del sector" value={newSectorName} onChange={e => setNewSectorName(e.target.value)} />
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewSectorOpen(false)}>Cancelar</Button><Button onClick={handleAddSector}>Crear</Button></div>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* New Filial Dialog */}
         <Dialog open={newFilialOpen} onOpenChange={setNewFilialOpen}>
           <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Nueva Filial</DialogTitle>
-            </DialogHeader>
+            <DialogHeader><DialogTitle>Nueva Filial</DialogTitle></DialogHeader>
             <div className="space-y-4">
-              <Input
-                placeholder="Nombre de la filial"
-                value={newFilialName}
-                onChange={e => setNewFilialName(e.target.value)}
-              />
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setNewFilialOpen(false)}>Cancelar</Button>
-                <Button onClick={handleAddFilial}>Crear</Button>
-              </div>
+              <Input placeholder="Nombre de la filial" value={newFilialName} onChange={e => setNewFilialName(e.target.value)} />
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setNewFilialOpen(false)}>Cancelar</Button><Button onClick={handleAddFilial}>Crear</Button></div>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Unified Historial Dialog */}
-        <PrinterHistoryDialog
-          printerId={selectedPrinterId}
-          printerName={selectedPrinterName}
-          open={historialOpen}
-          onOpenChange={setHistorialOpen}
-        />
+        <PrinterHistoryDialog printerId={selectedPrinterId} printerName={selectedPrinterName} open={historialOpen} onOpenChange={setHistorialOpen} />
       </div>
     </DashboardLayout>
   );

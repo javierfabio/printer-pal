@@ -19,7 +19,6 @@ import {
   TrendingUp, 
   FileText,
   ArrowRight,
-  Upload,
   Calculator,
   Clock,
   CheckCircle2,
@@ -47,7 +46,9 @@ interface Impresora {
   contador_negro_inicial: number;
   contador_color_inicial: number;
   sector_id: string | null;
+  filial_id: string | null;
   sectores?: { nombre: string } | null;
+  filiales?: { nombre: string } | null;
 }
 
 interface LecturaContador {
@@ -61,7 +62,10 @@ interface LecturaContador {
   impresoras?: {
     nombre: string;
     serie: string;
+    modelo: string;
     tipo_impresion: string;
+    sector_id: string | null;
+    filial_id: string | null;
   };
 }
 
@@ -74,6 +78,9 @@ interface PiezaImpresora {
   paginas_consumidas: number;
 }
 
+interface Sector { id: string; nombre: string; }
+interface Filial { id: string; nombre: string; }
+
 const TIPO_PIEZA_LABELS: Record<string, string> = {
   toner_negro: 'Tóner Negro',
   toner_color: 'Tóner Color',
@@ -85,7 +92,7 @@ const TIPO_PIEZA_LABELS: Record<string, string> = {
   otro: 'Otra Pieza',
 };
 
-const HIGH_CONSUMPTION_THRESHOLD = 5000; // Alert if > 5000 pages
+const HIGH_CONSUMPTION_THRESHOLD = 5000;
 
 export default function RegistroUso() {
   const { user } = useAuth();
@@ -93,6 +100,8 @@ export default function RegistroUso() {
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [lecturas, setLecturas] = useState<LecturaContador[]>([]);
   const [piezasPrinter, setPiezasPrinter] = useState<PiezaImpresora[]>([]);
+  const [sectores, setSectores] = useState<Sector[]>([]);
+  const [filiales, setFiliales] = useState<Filial[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -103,6 +112,11 @@ export default function RegistroUso() {
   const [notas, setNotas] = useState('');
   const [printerSearch, setPrinterSearch] = useState('');
 
+  // Cascade filters
+  const [filterFilial, setFilterFilial] = useState<string>('all');
+  const [filterSector, setFilterSector] = useState<string>('all');
+  const [filterModelo, setFilterModelo] = useState<string>('all');
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -110,65 +124,92 @@ export default function RegistroUso() {
   const fetchData = async () => {
     setLoading(true);
     
-    const [impResp, lecResp] = await Promise.all([
-      supabase.from('impresoras').select('*, sectores(nombre)').eq('estado', 'activa').order('nombre'),
+    const [impResp, lecResp, secResp, filResp] = await Promise.all([
+      supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)').eq('estado', 'activa').order('nombre'),
       supabase
         .from('lecturas_contadores')
-        .select('*, impresoras(nombre, serie, tipo_impresion)')
+        .select('*, impresoras(nombre, serie, modelo, tipo_impresion, sector_id, filial_id)')
         .order('fecha_lectura', { ascending: false })
         .limit(100),
+      supabase.from('sectores').select('id, nombre').eq('activo', true),
+      supabase.from('filiales').select('id, nombre').eq('activo', true),
     ]);
 
     if (impResp.data) setImpresoras(impResp.data as any[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaContador[]);
+    if (secResp.data) setSectores(secResp.data);
+    if (filResp.data) setFiliales(filResp.data);
     
     setLoading(false);
   };
 
-  // Fetch parts when printer is selected
   useEffect(() => {
     const fetchPiezas = async () => {
-      if (!selectedPrinter) {
-        setPiezasPrinter([]);
-        return;
-      }
-      
+      if (!selectedPrinter) { setPiezasPrinter([]); return; }
       const { data } = await supabase
         .from('piezas_impresora')
         .select('*')
         .eq('impresora_id', selectedPrinter)
         .eq('activo', true);
-      
       if (data) setPiezasPrinter(data as PiezaImpresora[]);
     };
-    
     fetchPiezas();
   }, [selectedPrinter]);
 
+  // Cascade filter logic
+  const filteredSectores = useMemo(() => {
+    if (filterFilial === 'all') return sectores;
+    const sectorIds = new Set(impresoras.filter(p => p.filial_id === filterFilial).map(p => p.sector_id).filter(Boolean));
+    return sectores.filter(s => sectorIds.has(s.id));
+  }, [filterFilial, sectores, impresoras]);
+
+  const filteredModelos = useMemo(() => {
+    let filtered = impresoras;
+    if (filterFilial !== 'all') filtered = filtered.filter(p => p.filial_id === filterFilial);
+    if (filterSector !== 'all') filtered = filtered.filter(p => p.sector_id === filterSector);
+    return [...new Set(filtered.map(p => p.modelo))].sort();
+  }, [filterFilial, filterSector, impresoras]);
+
   const filteredPrinters = useMemo(() => {
-    if (!printerSearch.trim()) return impresoras;
-    const q = printerSearch.toLowerCase();
-    return impresoras.filter(p =>
-      p.nombre.toLowerCase().includes(q) ||
-      p.serie.toLowerCase().includes(q) ||
-      p.modelo.toLowerCase().includes(q) ||
-      (p.sectores?.nombre || '').toLowerCase().includes(q)
-    );
-  }, [impresoras, printerSearch]);
+    let result = impresoras;
+    if (filterFilial !== 'all') result = result.filter(p => p.filial_id === filterFilial);
+    if (filterSector !== 'all') result = result.filter(p => p.sector_id === filterSector);
+    if (filterModelo !== 'all') result = result.filter(p => p.modelo === filterModelo);
+    if (printerSearch.trim()) {
+      const q = printerSearch.toLowerCase();
+      result = result.filter(p =>
+        p.nombre.toLowerCase().includes(q) ||
+        p.serie.toLowerCase().includes(q) ||
+        p.modelo.toLowerCase().includes(q) ||
+        (p.sectores?.nombre || '').toLowerCase().includes(q) ||
+        (p.filiales?.nombre || '').toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [impresoras, printerSearch, filterFilial, filterSector, filterModelo]);
+
+  const getFilialName = (filialId: string | null) => filiales.find(f => f.id === filialId)?.nombre || '-';
+  const getSectorName = (sectorId: string | null) => sectores.find(s => s.id === sectorId)?.nombre || '-';
+
+  // Filtered lecturas for the table
+  const filteredLecturas = useMemo(() => {
+    let result = lecturas;
+    if (filterFilial !== 'all') result = result.filter(l => l.impresoras?.filial_id === filterFilial);
+    if (filterSector !== 'all') result = result.filter(l => l.impresoras?.sector_id === filterSector);
+    if (filterModelo !== 'all') result = result.filter(l => l.impresoras?.modelo === filterModelo);
+    return result;
+  }, [lecturas, filterFilial, filterSector, filterModelo]);
 
   const selectedPrinterData = impresoras.find(p => p.id === selectedPrinter);
 
-  // Calculate pages printed in real-time
   const paginasNegro = useMemo(() => {
     if (!selectedPrinterData || !contadorNegro) return 0;
-    const nuevo = parseInt(contadorNegro) || 0;
-    return Math.max(0, nuevo - selectedPrinterData.contador_negro_actual);
+    return Math.max(0, (parseInt(contadorNegro) || 0) - selectedPrinterData.contador_negro_actual);
   }, [selectedPrinterData, contadorNegro]);
 
   const paginasColor = useMemo(() => {
     if (!selectedPrinterData || !contadorColor) return 0;
-    const nuevo = parseInt(contadorColor) || 0;
-    return Math.max(0, nuevo - selectedPrinterData.contador_color_actual);
+    return Math.max(0, (parseInt(contadorColor) || 0) - selectedPrinterData.contador_color_actual);
   }, [selectedPrinterData, contadorColor]);
 
   const totalPaginas = paginasNegro + paginasColor;
@@ -179,74 +220,47 @@ export default function RegistroUso() {
 
   const isHighConsumption = paginasNegro > HIGH_CONSUMPTION_THRESHOLD || paginasColor > HIGH_CONSUMPTION_THRESHOLD;
 
-  // Calculate parts impact
   const piezasImpacto = useMemo(() => {
     if (!piezasPrinter.length || !totalPaginas) return [];
-    
     const contadorActual = selectedPrinterData 
       ? selectedPrinterData.contador_negro_actual + selectedPrinterData.contador_color_actual 
       : 0;
-    
     return piezasPrinter.map(pieza => {
       const paginasUsadasActual = contadorActual - pieza.contador_instalacion + pieza.paginas_consumidas;
       const porcentajeActual = (paginasUsadasActual / pieza.vida_util_estimada) * 100;
-      
       const paginasUsadasNuevo = paginasUsadasActual + totalPaginas;
       const porcentajeNuevo = (paginasUsadasNuevo / pieza.vida_util_estimada) * 100;
-      
       const paginasRestantes = Math.max(0, pieza.vida_util_estimada - paginasUsadasNuevo);
-      
       let status: 'ok' | 'warning' | 'critical' = 'ok';
       if (porcentajeNuevo >= 90) status = 'critical';
       else if (porcentajeNuevo >= 70) status = 'warning';
-      
-      return {
-        ...pieza,
-        porcentajeActual,
-        porcentajeNuevo,
-        paginasRestantes,
-        status,
-      };
+      return { ...pieza, porcentajeActual, porcentajeNuevo, paginasRestantes, status };
     });
   }, [piezasPrinter, totalPaginas, selectedPrinterData]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!selectedPrinter || !user) return;
-
     const printer = impresoras.find(p => p.id === selectedPrinter);
     if (!printer) return;
 
     const negroValue = parseInt(contadorNegro) || 0;
     const colorValue = parseInt(contadorColor) || 0;
 
-    // Validate counters can never decrease
     if (showOnlyBlack || showBothCounters) {
       if (negroValue < printer.contador_negro_actual) {
-        toast({
-          variant: 'destructive',
-          title: 'Error de validación',
-          description: 'El contador negro no puede ser menor al valor actual. Los contadores nunca disminuyen.',
-        });
+        toast({ variant: 'destructive', title: 'Error de validación', description: 'El contador negro no puede ser menor al valor actual.' });
         return;
       }
     }
-
     if (showOnlyColor || showBothCounters) {
       if (colorValue < printer.contador_color_actual) {
-        toast({
-          variant: 'destructive',
-          title: 'Error de validación',
-          description: 'El contador color no puede ser menor al valor actual. Los contadores nunca disminuyen.',
-        });
+        toast({ variant: 'destructive', title: 'Error de validación', description: 'El contador color no puede ser menor al valor actual.' });
         return;
       }
     }
 
     setSaving(true);
-
-    // Insert reading
     const { error: lecturaError } = await supabase.from('lecturas_contadores').insert({
       impresora_id: selectedPrinter,
       contador_negro: (showOnlyBlack || showBothCounters) ? negroValue : null,
@@ -261,41 +275,25 @@ export default function RegistroUso() {
       return;
     }
 
-    // Update printer counters
     const updates: Record<string, number> = {};
-    if (showOnlyBlack || showBothCounters) {
-      updates.contador_negro_actual = negroValue;
-    }
-    if (showOnlyColor || showBothCounters) {
-      updates.contador_color_actual = colorValue;
-    }
+    if (showOnlyBlack || showBothCounters) updates.contador_negro_actual = negroValue;
+    if (showOnlyColor || showBothCounters) updates.contador_color_actual = colorValue;
 
-    const { error: updateError } = await supabase
-      .from('impresoras')
-      .update(updates)
-      .eq('id', selectedPrinter);
+    const { error: updateError } = await supabase.from('impresoras').update(updates).eq('id', selectedPrinter);
 
     if (updateError) {
       toast({ variant: 'destructive', title: 'Error', description: updateError.message });
     } else {
-      // Update paginas_consumidas for each active part
       if (piezasPrinter.length > 0 && totalPaginas > 0) {
         for (const pieza of piezasPrinter) {
-          await supabase
-            .from('piezas_impresora')
-            .update({ 
-              paginas_consumidas: pieza.paginas_consumidas + totalPaginas 
-            })
-            .eq('id', pieza.id);
+          await supabase.from('piezas_impresora').update({ paginas_consumidas: pieza.paginas_consumidas + totalPaginas }).eq('id', pieza.id);
         }
       }
-      
       toast({ title: 'Lectura registrada', description: `Se registraron ${totalPaginas.toLocaleString()} páginas impresas.` });
       setDialogOpen(false);
       resetForm();
       fetchData();
     }
-
     setSaving(false);
   };
 
@@ -308,7 +306,6 @@ export default function RegistroUso() {
     setPrinterSearch('');
   };
 
-  // Stats calculations
   const totalPaginasHoy = lecturas
     .filter(l => new Date(l.fecha_lectura).toDateString() === new Date().toDateString())
     .reduce((acc, l) => acc + (l.contador_negro || 0) + (l.contador_color || 0), 0);
@@ -318,19 +315,16 @@ export default function RegistroUso() {
   ).length;
 
   const exportLecturasPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('landscape');
     const startY = addPDFHeader(doc, 'Registro de Uso', 'Lecturas de Contadores');
 
-    doc.setFontSize(10);
-    doc.setTextColor(60, 60, 60);
-    doc.text(`Total de Lecturas: ${lecturas.length}`, 14, startY);
-    doc.text(`Impresoras Activas: ${impresoras.length}`, 14, startY + 6);
-    doc.text(`Lecturas Hoy: ${lecturasHoy}`, 14, startY + 12);
-
-    const tableData = lecturas.map(l => [
+    const tableData = filteredLecturas.map(l => [
       new Date(l.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' }),
       new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+      getFilialName(l.impresoras?.filial_id || null),
+      getSectorName(l.impresoras?.sector_id || null),
       l.impresoras?.nombre || '-',
+      l.impresoras?.modelo || '-',
       l.impresoras?.serie || '-',
       l.contador_negro?.toLocaleString() ?? '-',
       l.contador_color?.toLocaleString() ?? '-',
@@ -338,21 +332,12 @@ export default function RegistroUso() {
     ]);
 
     autoTable(doc, {
-      startY: startY + 18,
-      head: [['Fecha', 'Hora', 'Impresora', 'Serie', 'Negro', 'Color', 'Notas']],
+      startY,
+      head: [['Fecha', 'Hora', 'Filial', 'Sector', 'Impresora', 'Modelo', 'Serie', 'Negro', 'Color', 'Notas']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: [59, 130, 246], textColor: 255 },
       styles: { fontSize: 7 },
-      columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 16 },
-        2: { cellWidth: 32 },
-        3: { cellWidth: 24 },
-        4: { cellWidth: 20, halign: 'right' },
-        5: { cellWidth: 20, halign: 'right' },
-        6: { cellWidth: 40 },
-      },
     });
 
     addPDFPageNumbers(doc);
@@ -361,10 +346,13 @@ export default function RegistroUso() {
   };
 
   const exportLecturasCSV = () => {
-    const data = lecturas.map(l => ({
+    const data = filteredLecturas.map(l => ({
       Fecha: new Date(l.fecha_lectura).toLocaleDateString('es'),
       Hora: new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+      Filial: getFilialName(l.impresoras?.filial_id || null),
+      Sector: getSectorName(l.impresoras?.sector_id || null),
       Impresora: l.impresoras?.nombre || '',
+      Modelo: l.impresoras?.modelo || '',
       Serie: l.impresoras?.serie || '',
       ContadorNegro: l.contador_negro ?? '',
       ContadorColor: l.contador_color ?? '',
@@ -381,6 +369,8 @@ export default function RegistroUso() {
     link.click();
     toast({ title: 'Exportado', description: 'El archivo CSV ha sido descargado.' });
   };
+
+  const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all';
 
   return (
     <DashboardLayout>
@@ -427,7 +417,7 @@ export default function RegistroUso() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Seleccionar Impresora *</Label>
                     <Input
-                      placeholder="Filtrar por serie, modelo o sector..."
+                      placeholder="Filtrar por serie, modelo, sector o filial..."
                       value={printerSearch}
                       onChange={e => setPrinterSearch(e.target.value)}
                       className="h-10 mb-2"
@@ -444,7 +434,9 @@ export default function RegistroUso() {
                           <SelectItem key={p.id} value={p.id}>
                             <div className="flex items-center gap-2">
                               <span className="font-medium">{p.nombre}</span>
-                              <span className="text-muted-foreground text-xs">({p.serie} · {p.modelo}{p.sectores?.nombre ? ` · ${p.sectores.nombre}` : ''})</span>
+                              <span className="text-muted-foreground text-xs">
+                                ({p.serie} · {p.modelo}{p.filiales?.nombre ? ` · ${p.filiales.nombre}` : ''}{p.sectores?.nombre ? ` - ${p.sectores.nombre}` : ''})
+                              </span>
                             </div>
                           </SelectItem>
                         ))}
@@ -459,6 +451,12 @@ export default function RegistroUso() {
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">Modelo</span>
                             <span className="font-medium">{selectedPrinterData.modelo}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-muted-foreground">Filial / Sector</span>
+                            <span className="font-medium">
+                              {selectedPrinterData.filiales?.nombre || '-'} / {selectedPrinterData.sectores?.nombre || '-'}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">Tipo</span>
@@ -487,45 +485,23 @@ export default function RegistroUso() {
                         </CardContent>
                       </Card>
 
-                      {/* New counter inputs */}
                       <div className="space-y-4">
                         {(showOnlyBlack || showBothCounters) && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">Nuevo Contador Negro *</Label>
-                            <Input
-                              type="number"
-                              min={selectedPrinterData.contador_negro_actual}
-                              value={contadorNegro}
-                              onChange={e => setContadorNegro(e.target.value)}
-                              placeholder={`Mínimo: ${selectedPrinterData.contador_negro_actual}`}
-                              className="h-11"
-                              required
-                            />
+                            <Input type="number" min={selectedPrinterData.contador_negro_actual} value={contadorNegro} onChange={e => setContadorNegro(e.target.value)} placeholder={`Mínimo: ${selectedPrinterData.contador_negro_actual}`} className="h-11" required />
                           </div>
                         )}
-
                         {(showOnlyColor || showBothCounters) && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">Nuevo Contador Color *</Label>
-                            <Input
-                              type="number"
-                              min={selectedPrinterData.contador_color_actual}
-                              value={contadorColor}
-                              onChange={e => setContadorColor(e.target.value)}
-                              placeholder={`Mínimo: ${selectedPrinterData.contador_color_actual}`}
-                              className="h-11"
-                              required
-                            />
+                            <Input type="number" min={selectedPrinterData.contador_color_actual} value={contadorColor} onChange={e => setContadorColor(e.target.value)} placeholder={`Mínimo: ${selectedPrinterData.contador_color_actual}`} className="h-11" required />
                           </div>
                         )}
                       </div>
 
-                      {/* Real-time calculation */}
                       {(contadorNegro || contadorColor) && (
-                        <Card className={cn(
-                          "border-2",
-                          isHighConsumption ? "border-warning bg-warning/5" : "border-success bg-success/5"
-                        )}>
+                        <Card className={cn("border-2", isHighConsumption ? "border-warning bg-warning/5" : "border-success bg-success/5")}>
                           <CardContent className="pt-4">
                             <div className="flex items-center gap-2 mb-3">
                               <TrendingUp className={cn("w-5 h-5", isHighConsumption ? "text-warning" : "text-success")} />
@@ -555,7 +531,6 @@ export default function RegistroUso() {
                         </Card>
                       )}
 
-                      {/* Parts Impact Section */}
                       {piezasImpacto.length > 0 && totalPaginas > 0 && (
                         <Card className="border-info/50 bg-info/5">
                           <CardHeader className="pb-2">
@@ -574,43 +549,19 @@ export default function RegistroUso() {
                               )}>
                                 <div className="flex items-center justify-between mb-2">
                                   <div className="flex items-center gap-2">
-                                    <Droplets className={cn(
-                                      "w-4 h-4",
-                                      pieza.status === 'critical' && "text-destructive",
-                                      pieza.status === 'warning' && "text-warning",
-                                      pieza.status === 'ok' && "text-info"
-                                    )} />
-                                    <span className="text-sm font-medium">
-                                      {TIPO_PIEZA_LABELS[pieza.tipo_pieza] || pieza.nombre_pieza}
-                                    </span>
+                                    <Droplets className={cn("w-4 h-4", pieza.status === 'critical' && "text-destructive", pieza.status === 'warning' && "text-warning", pieza.status === 'ok' && "text-info")} />
+                                    <span className="text-sm font-medium">{TIPO_PIEZA_LABELS[pieza.tipo_pieza] || pieza.nombre_pieza}</span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground">
-                                      {pieza.porcentajeActual.toFixed(0)}%
-                                    </span>
+                                    <span className="text-xs text-muted-foreground">{pieza.porcentajeActual.toFixed(0)}%</span>
                                     <ArrowRight className="w-3 h-3 text-muted-foreground" />
-                                    <span className={cn(
-                                      "text-sm font-bold",
-                                      pieza.status === 'critical' && "text-destructive",
-                                      pieza.status === 'warning' && "text-warning",
-                                      pieza.status === 'ok' && "text-success"
-                                    )}>
+                                    <span className={cn("text-sm font-bold", pieza.status === 'critical' && "text-destructive", pieza.status === 'warning' && "text-warning", pieza.status === 'ok' && "text-success")}>
                                       {Math.min(100, pieza.porcentajeNuevo).toFixed(0)}%
                                     </span>
                                   </div>
                                 </div>
-                                <Progress 
-                                  value={Math.min(100, pieza.porcentajeNuevo)} 
-                                  className={cn(
-                                    "h-2",
-                                    pieza.status === 'critical' && "[&>div]:bg-destructive",
-                                    pieza.status === 'warning' && "[&>div]:bg-warning",
-                                    pieza.status === 'ok' && "[&>div]:bg-info"
-                                  )}
-                                />
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  {pieza.paginasRestantes.toLocaleString()} páginas restantes
-                                </p>
+                                <Progress value={Math.min(100, pieza.porcentajeNuevo)} className={cn("h-2", pieza.status === 'critical' && "[&>div]:bg-destructive", pieza.status === 'warning' && "[&>div]:bg-warning", pieza.status === 'ok' && "[&>div]:bg-info")} />
+                                <p className="text-xs text-muted-foreground mt-1">{pieza.paginasRestantes.toLocaleString()} páginas restantes</p>
                                 {pieza.status === 'critical' && (
                                   <div className="flex items-center gap-1 mt-2 text-destructive text-xs">
                                     <AlertTriangle className="w-3 h-3" />
@@ -625,29 +576,15 @@ export default function RegistroUso() {
 
                       <div className="space-y-2">
                         <Label className="text-sm font-medium">Observaciones (opcional)</Label>
-                        <Textarea
-                          value={notas}
-                          onChange={e => setNotas(e.target.value)}
-                          placeholder="Notas adicionales sobre esta lectura..."
-                          className="min-h-[80px]"
-                        />
+                        <Textarea value={notas} onChange={e => setNotas(e.target.value)} placeholder="Notas adicionales sobre esta lectura..." className="min-h-[80px]" />
                       </div>
                     </>
                   )}
 
                   <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancelar
-                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
                     <Button type="submit" disabled={saving || !selectedPrinter} className="min-w-[120px]">
-                      {saving ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <>
-                          <CheckCircle2 className="w-4 h-4 mr-2" />
-                          Registrar
-                        </>
-                      )}
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 mr-2" />Registrar</>}
                     </Button>
                   </div>
                 </form>
@@ -661,77 +598,95 @@ export default function RegistroUso() {
           <Card className="hover-lift">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-primary/10">
-                  <FileText className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Lecturas</p>
-                  <p className="text-2xl font-bold">{lecturas.length}</p>
-                </div>
+                <div className="p-3 rounded-xl bg-primary/10"><FileText className="w-6 h-6 text-primary" /></div>
+                <div><p className="text-sm text-muted-foreground">Total Lecturas</p><p className="text-2xl font-bold">{lecturas.length}</p></div>
               </div>
             </CardContent>
           </Card>
-          
           <Card className="hover-lift">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-success/10">
-                  <Printer className="w-6 h-6 text-success" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Impresoras Activas</p>
-                  <p className="text-2xl font-bold">{impresoras.length}</p>
-                </div>
+                <div className="p-3 rounded-xl bg-success/10"><Printer className="w-6 h-6 text-success" /></div>
+                <div><p className="text-sm text-muted-foreground">Impresoras Activas</p><p className="text-2xl font-bold">{impresoras.length}</p></div>
               </div>
             </CardContent>
           </Card>
-          
           <Card className="hover-lift">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-info/10">
-                  <Clock className="w-6 h-6 text-info" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Lecturas Hoy</p>
-                  <p className="text-2xl font-bold">{lecturasHoy}</p>
-                </div>
+                <div className="p-3 rounded-xl bg-info/10"><Clock className="w-6 h-6 text-info" /></div>
+                <div><p className="text-sm text-muted-foreground">Lecturas Hoy</p><p className="text-2xl font-bold">{lecturasHoy}</p></div>
               </div>
             </CardContent>
           </Card>
-
           <Card className="hover-lift">
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-warning/10">
-                  <TrendingUp className="w-6 h-6 text-warning" />
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Páginas Hoy</p>
-                  <p className="text-2xl font-bold">{totalPaginasHoy.toLocaleString()}</p>
-                </div>
+                <div className="p-3 rounded-xl bg-warning/10"><TrendingUp className="w-6 h-6 text-warning" /></div>
+                <div><p className="text-sm text-muted-foreground">Páginas Hoy</p><p className="text-2xl font-bold">{totalPaginasHoy.toLocaleString()}</p></div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Readings with quick history */}
+        {/* Cascade Filters */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label className="text-sm">Filial</Label>
+                <Select value={filterFilial} onValueChange={v => { setFilterFilial(v); setFilterSector('all'); setFilterModelo('all'); }}>
+                  <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Todas las filiales</SelectItem>
+                    {filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Sector</Label>
+                <Select value={filterSector} onValueChange={v => { setFilterSector(v); setFilterModelo('all'); }}>
+                  <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Todos los sectores</SelectItem>
+                    {filteredSectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm">Modelo</Label>
+                <Select value={filterModelo} onValueChange={setFilterModelo}>
+                  <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    <SelectItem value="all">Todos los modelos</SelectItem>
+                    {filteredModelos.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={() => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); }} className="gap-2 text-destructive hover:text-destructive">
+                    Borrar filtros
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recent Readings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-primary" />
               Historial Rápido de Lecturas
             </CardTitle>
-            <CardDescription>
-              Últimas lecturas registradas en el sistema
-            </CardDescription>
+            <CardDescription>Últimas lecturas registradas en el sistema</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              </div>
-            ) : lecturas.length === 0 ? (
+              <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : filteredLecturas.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
                 <p className="text-lg font-medium">No hay lecturas registradas</p>
@@ -743,7 +698,10 @@ export default function RegistroUso() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Fecha/Hora</TableHead>
+                      <TableHead>Filial</TableHead>
+                      <TableHead>Sector</TableHead>
                       <TableHead>Impresora</TableHead>
+                      <TableHead>Modelo</TableHead>
                       <TableHead>Serie</TableHead>
                       <TableHead className="text-right">Negro</TableHead>
                       <TableHead className="text-right">Color</TableHead>
@@ -751,37 +709,23 @@ export default function RegistroUso() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {lecturas.slice(0, 20).map((lectura) => (
+                    {filteredLecturas.slice(0, 20).map((lectura) => (
                       <TableRow key={lectura.id} className="hover:bg-muted/50">
                         <TableCell className="whitespace-nowrap">
-                          {new Date(lectura.fecha_lectura).toLocaleDateString('es', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
+                          {new Date(lectura.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
                           <br />
                           <span className="text-xs text-muted-foreground">
-                            {new Date(lectura.fecha_lectura).toLocaleTimeString('es', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
+                            {new Date(lectura.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </TableCell>
-                        <TableCell className="font-medium">
-                          {lectura.impresoras?.nombre || '-'}
-                        </TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">
-                          {lectura.impresoras?.serie || '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {lectura.contador_negro?.toLocaleString() ?? '-'}
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {lectura.contador_color?.toLocaleString() ?? '-'}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">
-                          {lectura.notas || '-'}
-                        </TableCell>
+                        <TableCell className="text-muted-foreground">{getFilialName(lectura.impresoras?.filial_id || null)}</TableCell>
+                        <TableCell className="text-muted-foreground">{getSectorName(lectura.impresoras?.sector_id || null)}</TableCell>
+                        <TableCell className="font-medium">{lectura.impresoras?.nombre || '-'}</TableCell>
+                        <TableCell>{lectura.impresoras?.modelo || '-'}</TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">{lectura.impresoras?.serie || '-'}</TableCell>
+                        <TableCell className="text-right font-medium">{lectura.contador_negro?.toLocaleString() ?? '-'}</TableCell>
+                        <TableCell className="text-right font-medium">{lectura.contador_color?.toLocaleString() ?? '-'}</TableCell>
+                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{lectura.notas || '-'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
