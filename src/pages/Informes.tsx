@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import {
-  BarChart3, Download, Filter, Loader2, Printer, TrendingUp, FileText, PieChart, Wrench, XCircle, ArrowUpDown, User
+  BarChart3, Download, Filter, Loader2, Printer, TrendingUp, FileText, PieChart, Wrench, XCircle, ArrowUpDown, User, Search
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +22,7 @@ interface Impresora { id: string; nombre: string; serie: string; modelo: string;
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
 interface Profile { id: string; full_name: string | null; email: string; }
-interface PiezaInfo { id: string; nombre_pieza: string; tipo_pieza: string; vida_util_estimada: number; porcentaje_usado: number; impresora_nombre: string; impresora_serie: string; impresora_id: string; }
+interface PiezaInfo { id: string; nombre_pieza: string; tipo_pieza: string; vida_util_estimada: number; porcentaje_usado: number; impresora_nombre: string; impresora_serie: string; impresora_id: string; contador_instalacion: number; consumoDesdeCarga: number; }
 interface LecturaInfo { id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; registrado_por: string; impresora_id: string; impresoras?: { nombre: string; serie: string }; }
 
 const COLORS = ['hsl(221, 83%, 53%)', 'hsl(142, 76%, 36%)', 'hsl(38, 92%, 50%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
@@ -46,6 +46,7 @@ export default function Informes() {
   const [filterDateFrom, setFilterDateFrom] = useState<string>('');
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [globalSearch, setGlobalSearch] = useState('');
 
   useEffect(() => { fetchData(); }, []);
 
@@ -67,8 +68,15 @@ export default function Informes() {
     if (piezasResp.data) {
       setPiezas(piezasResp.data.map((p: any) => {
         const contadorActual = (p.impresoras?.contador_negro_actual || 0) + (p.impresoras?.contador_color_actual || 0);
-        const paginasUsadas = contadorActual - p.contador_instalacion + p.paginas_consumidas;
-        return { id: p.id, nombre_pieza: p.nombre_pieza, tipo_pieza: p.tipo_pieza, vida_util_estimada: p.vida_util_estimada, porcentaje_usado: Math.min(100, (paginasUsadas / p.vida_util_estimada) * 100), impresora_nombre: p.impresoras?.nombre || '', impresora_serie: p.impresoras?.serie || '', impresora_id: p.impresora_id };
+        const consumoDesdeCarga = contadorActual - p.contador_instalacion + p.paginas_consumidas;
+        return {
+          id: p.id, nombre_pieza: p.nombre_pieza, tipo_pieza: p.tipo_pieza,
+          vida_util_estimada: p.vida_util_estimada,
+          porcentaje_usado: Math.min(100, (consumoDesdeCarga / p.vida_util_estimada) * 100),
+          impresora_nombre: p.impresoras?.nombre || '', impresora_serie: p.impresoras?.serie || '',
+          impresora_id: p.impresora_id, contador_instalacion: p.contador_instalacion,
+          consumoDesdeCarga,
+        };
       }));
     }
     setLoading(false);
@@ -78,27 +86,39 @@ export default function Informes() {
   const getSectorName = (id: string | null) => sectores.find(s => s.id === id)?.nombre || '-';
   const getFilialName = (id: string | null) => filiales.find(f => f.id === id)?.nombre || '-';
 
+  // Global search filter
+  const searchFilteredImpresoras = useMemo(() => {
+    if (!globalSearch) return impresoras;
+    const q = globalSearch.toLowerCase();
+    return impresoras.filter(imp =>
+      imp.nombre.toLowerCase().includes(q) || imp.serie.toLowerCase().includes(q) ||
+      imp.modelo.toLowerCase().includes(q) ||
+      getFilialName(imp.filial_id).toLowerCase().includes(q) ||
+      getSectorName(imp.sector_id).toLowerCase().includes(q)
+    );
+  }, [globalSearch, impresoras, sectores, filiales]);
+
   // Cascade filters
   const filteredSectores = useMemo(() => {
     if (filterFilial === 'all') return sectores;
-    const sectorIds = new Set(impresoras.filter(p => p.filial_id === filterFilial).map(p => p.sector_id).filter(Boolean));
+    const sectorIds = new Set(searchFilteredImpresoras.filter(p => p.filial_id === filterFilial).map(p => p.sector_id).filter(Boolean));
     return sectores.filter(s => sectorIds.has(s.id));
-  }, [filterFilial, sectores, impresoras]);
+  }, [filterFilial, sectores, searchFilteredImpresoras]);
 
   const filteredModelos = useMemo(() => {
-    let f = impresoras;
+    let f = searchFilteredImpresoras;
     if (filterFilial !== 'all') f = f.filter(p => p.filial_id === filterFilial);
     if (filterSector !== 'all') f = f.filter(p => p.sector_id === filterSector);
     return [...new Set(f.map(p => p.modelo))].sort();
-  }, [filterFilial, filterSector, impresoras]);
+  }, [filterFilial, filterSector, searchFilteredImpresoras]);
 
   const filteredPrinterList = useMemo(() => {
-    let f = impresoras;
+    let f = searchFilteredImpresoras;
     if (filterFilial !== 'all') f = f.filter(p => p.filial_id === filterFilial);
     if (filterSector !== 'all') f = f.filter(p => p.sector_id === filterSector);
     if (filterModelo !== 'all') f = f.filter(p => p.modelo === filterModelo);
     return f;
-  }, [filterFilial, filterSector, filterModelo, impresoras]);
+  }, [filterFilial, filterSector, filterModelo, searchFilteredImpresoras]);
 
   const filteredImpresoras = useMemo(() => {
     let f = filteredPrinterList;
@@ -127,8 +147,8 @@ export default function Informes() {
   const pieData = [{ name: 'Blanco y Negro', value: totalPaginasNegro }, { name: 'Color', value: totalPaginasColor }].filter(d => d.value > 0);
   const filteredPiezas = piezas.filter(p => filteredPrinterIds.has(p.impresora_id));
 
-  const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSortOrder('desc'); };
-  const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo;
+  const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSortOrder('desc'); setGlobalSearch(''); };
+  const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || globalSearch;
 
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
@@ -138,18 +158,18 @@ export default function Informes() {
 
     autoTable(doc, {
       startY: startY + 6,
-      head: [['Fecha', 'Filial', 'Sector', 'Modelo', 'Serie', 'Nombre', 'Pág. B/N', 'Pág. Color', 'Total']],
-      body: sortedImpresoras.map(imp => ['-', getFilialName(imp.filial_id), getSectorName(imp.sector_id), imp.modelo, imp.serie, imp.nombre, (imp.contador_negro_actual - imp.contador_negro_inicial).toLocaleString(), (imp.contador_color_actual - imp.contador_color_inicial).toLocaleString(), ((imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial)).toLocaleString()]),
+      head: [['Filial', 'Sector', 'Modelo', 'Serie', 'Nombre', 'Pág. B/N', 'Pág. Color', 'Total']],
+      body: sortedImpresoras.map(imp => [getFilialName(imp.filial_id), getSectorName(imp.sector_id), imp.modelo, imp.serie, imp.nombre, (imp.contador_negro_actual - imp.contador_negro_inicial).toLocaleString(), (imp.contador_color_actual - imp.contador_color_inicial).toLocaleString(), ((imp.contador_negro_actual - imp.contador_negro_inicial) + (imp.contador_color_actual - imp.contador_color_inicial)).toLocaleString()]),
       theme: 'striped', headStyles: { fillColor: [59, 130, 246], textColor: 255 }, styles: { fontSize: 7 },
     });
 
-    // Parts page
+    // Parts page with consumption from load
     doc.addPage();
-    const partsY = addPDFHeader(doc, 'Estado de Piezas');
+    const partsY = addPDFHeader(doc, 'Estado de Piezas - Consumo desde Última Carga');
     autoTable(doc, {
       startY: partsY,
-      head: [['Tipo', 'Nombre', 'Impresora', 'Vida Útil', '% Usado', 'Estado']],
-      body: filteredPiezas.sort((a, b) => b.porcentaje_usado - a.porcentaje_usado).map(p => [TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza, p.nombre_pieza, p.impresora_nombre, p.vida_util_estimada.toLocaleString(), `${p.porcentaje_usado.toFixed(1)}%`, p.porcentaje_usado >= 90 ? 'Crítico' : p.porcentaje_usado >= 70 ? 'Advertencia' : 'OK']),
+      head: [['Tipo', 'Nombre', 'Impresora', 'Vida Útil', 'Consumo desde Carga', '% Usado', 'Estado']],
+      body: filteredPiezas.sort((a, b) => b.porcentaje_usado - a.porcentaje_usado).map(p => [TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza, p.nombre_pieza, p.impresora_nombre, p.vida_util_estimada.toLocaleString(), p.consumoDesdeCarga.toLocaleString(), `${p.porcentaje_usado.toFixed(1)}%`, p.porcentaje_usado >= 90 ? 'Crítico' : p.porcentaje_usado >= 70 ? 'Advertencia' : 'OK']),
       theme: 'striped', headStyles: { fillColor: [59, 130, 246], textColor: 255 }, styles: { fontSize: 8 },
     });
 
@@ -190,6 +210,16 @@ export default function Informes() {
             <Button onClick={exportToPDF} className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
           </div>
         </div>
+
+        {/* Global Search */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="relative max-w-lg">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Buscar por filial, sector, modelo o número de serie..." value={globalSearch} onChange={e => setGlobalSearch(e.target.value)} className="pl-9" />
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Cascade Filters */}
         <Card>
@@ -305,6 +335,36 @@ export default function Informes() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Pieces with Consumption from Load */}
+            {filteredPiezas.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="flex items-center gap-2"><Wrench className="w-5 h-5 text-primary" />Consumo desde Última Carga de Pieza</CardTitle></CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader><TableRow><TableHead>Pieza</TableHead><TableHead>Impresora</TableHead><TableHead className="text-right">Vida Útil</TableHead><TableHead className="text-right">Consumo desde Carga</TableHead><TableHead className="text-right">% Usado</TableHead><TableHead>Estado</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {filteredPiezas.sort((a, b) => b.porcentaje_usado - a.porcentaje_usado).map(p => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.nombre_pieza}<p className="text-xs text-muted-foreground">{TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza}</p></TableCell>
+                            <TableCell>{p.impresora_nombre}<p className="text-xs text-muted-foreground">{p.impresora_serie}</p></TableCell>
+                            <TableCell className="text-right font-mono">{p.vida_util_estimada.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold">{p.consumoDesdeCarga.toLocaleString()}</TableCell>
+                            <TableCell className="text-right font-mono">{p.porcentaje_usado.toFixed(1)}%</TableCell>
+                            <TableCell>
+                              <Badge variant={p.porcentaje_usado >= 90 ? 'destructive' : p.porcentaje_usado >= 70 ? 'secondary' : 'outline'}>
+                                {p.porcentaje_usado >= 90 ? 'Crítico' : p.porcentaje_usado >= 70 ? 'Advertencia' : 'OK'}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Recent Activity */}
             <Card>

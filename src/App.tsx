@@ -18,6 +18,7 @@ import RegistroUso from "./pages/RegistroUso";
 import Historial from "./pages/Historial";
 import Usuarios from "./pages/Usuarios";
 import Costos from "./pages/Costos";
+import CatalogoPiezas from "./pages/CatalogoPiezas";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
