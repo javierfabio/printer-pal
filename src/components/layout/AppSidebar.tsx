@@ -20,6 +20,7 @@ const menuItems: MenuItem[] = [
   { title: 'Inicio', url: '/dashboard', icon: Home },
   { title: 'Registro de Uso', url: '/dashboard/registro-uso', icon: ClipboardList },
   { title: 'Gestión de Piezas', url: '/dashboard/piezas', icon: Wrench },
+  { title: 'Catálogo Piezas', url: '/dashboard/catalogo-piezas', icon: FileText },
   { title: 'Registrar Impresora', url: '/dashboard/impresoras', icon: Printer, adminOnly: true },
   { title: 'Informes', url: '/dashboard/informes', icon: BarChart3 },
   { title: 'Historial', url: '/dashboard/historial', icon: History },

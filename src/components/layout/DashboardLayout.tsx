@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef, useCallback, useState } from 'react';
+import { ReactNode, useEffect, useCallback, useState } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { PartsAlertBanner } from '@/components/alerts/PartsAlertBanner';
 import { usePartsAlerts } from '@/hooks/usePartsAlerts';
@@ -15,7 +15,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { toast } = useToast();
   const { signOut } = useAuth();
   const { criticalAlerts, warningAlerts, loading } = usePartsAlerts();
-  const hasShownToast = useRef(false);
   const [systemConfig] = useState(getSystemConfig());
 
   const handleInactivityTimeout = useCallback(() => {
@@ -25,16 +24,17 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useInactivityTimeout(handleInactivityTimeout);
 
+  // Persistent alert - show every time alerts change (not just once)
   useEffect(() => {
-    if (loading || hasShownToast.current) return;
+    if (loading) return;
     if (criticalAlerts.length > 0) {
       toast({ variant: 'destructive', title: '⚠️ Alerta Crítica de Piezas', description: `${criticalAlerts.length} pieza(s) requieren reemplazo inmediato.` });
-      hasShownToast.current = true;
     } else if (warningAlerts.length > 0) {
       toast({ title: '⚡ Piezas Próximas a Vencer', description: `${warningAlerts.length} pieza(s) superan el umbral de advertencia.` });
-      hasShownToast.current = true;
     }
-  }, [loading, criticalAlerts.length, warningAlerts.length, toast]);
+  // Only fire once per mount (page navigation)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   return (
     <div className="flex min-h-screen w-full bg-background">
@@ -46,7 +46,6 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             {children}
           </div>
         </main>
-        {/* Footer */}
         <footer className="border-t border-border py-3 px-6">
           <div className="container flex flex-col sm:flex-row justify-between items-center gap-1 text-xs text-muted-foreground">
             <span>{systemConfig.copyrightText}</span>

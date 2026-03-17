@@ -371,6 +371,48 @@ export type Database = {
           },
         ]
       }
+      piezas_catalogo: {
+        Row: {
+          activo: boolean
+          created_at: string
+          fecha_ultima_carga: string | null
+          id: string
+          modelos_vinculados: string[]
+          nombre_pieza: string
+          notas: string | null
+          stock_actual: number
+          tipo_pieza: string
+          updated_at: string
+          vida_util_estimada: number
+        }
+        Insert: {
+          activo?: boolean
+          created_at?: string
+          fecha_ultima_carga?: string | null
+          id?: string
+          modelos_vinculados?: string[]
+          nombre_pieza: string
+          notas?: string | null
+          stock_actual?: number
+          tipo_pieza: string
+          updated_at?: string
+          vida_util_estimada?: number
+        }
+        Update: {
+          activo?: boolean
+          created_at?: string
+          fecha_ultima_carga?: string | null
+          id?: string
+          modelos_vinculados?: string[]
+          nombre_pieza?: string
+          notas?: string | null
+          stock_actual?: number
+          tipo_pieza?: string
+          updated_at?: string
+          vida_util_estimada?: number
+        }
+        Relationships: []
+      }
       piezas_impresora: {
         Row: {
           activo: boolean

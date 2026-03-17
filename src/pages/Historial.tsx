@@ -79,6 +79,29 @@ export default function Historial() {
   const getSectorName = (id: string | null) => sectores.find(s => s.id === id)?.nombre || '-';
   const getPrinterInfo = (printerId: string) => impresoras.find(p => p.id === printerId);
 
+  // Build a map of previous readings per printer (ordered by date desc)
+  const lecturasConAnterior = useMemo(() => {
+    // Group by impresora_id, sorted by date desc (already sorted)
+    const byPrinter: Record<string, LecturaHistorial[]> = {};
+    lecturas.forEach(l => {
+      if (!byPrinter[l.impresora_id]) byPrinter[l.impresora_id] = [];
+      byPrinter[l.impresora_id].push(l);
+    });
+
+    // For each reading, find the previous one
+    const result: Record<string, { negroAnt: number | null; colorAnt: number | null }> = {};
+    Object.values(byPrinter).forEach(arr => {
+      for (let i = 0; i < arr.length; i++) {
+        const next = arr[i + 1]; // previous in time (array is desc)
+        result[arr[i].id] = {
+          negroAnt: next?.contador_negro ?? null,
+          colorAnt: next?.contador_color ?? null,
+        };
+      }
+    });
+    return result;
+  }, [lecturas]);
+
   // Cascade filters
   const filteredSectores = useMemo(() => {
     if (filterFilial === 'all') return sectores;
@@ -123,9 +146,14 @@ export default function Historial() {
     return true;
   };
 
-  const filteredLecturas = sortByDate(lecturas.filter(l => matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && (!searchTerm || l.impresoras?.nombre?.toLowerCase().includes(searchTerm.toLowerCase()))), 'fecha_lectura');
-  const filteredHistorial = sortByDate(historial.filter(h => matchesPrinterFilter(h.impresora_id) && matchesDateFilter(h.created_at) && (!searchTerm || h.impresoras?.nombre?.toLowerCase().includes(searchTerm.toLowerCase()))), 'created_at');
-  const filteredPiezas = sortByDate(piezas.filter(p => matchesPrinterFilter(p.impresora_id) && matchesDateFilter(p.fecha_cambio) && (!searchTerm || p.impresoras?.nombre?.toLowerCase().includes(searchTerm.toLowerCase()))), 'fecha_cambio');
+  const matchesSearch = (name?: string) => {
+    if (!searchTerm) return true;
+    return name?.toLowerCase().includes(searchTerm.toLowerCase());
+  };
+
+  const filteredLecturas = sortByDate(lecturas.filter(l => matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && matchesSearch(l.impresoras?.nombre)), 'fecha_lectura');
+  const filteredHistorial = sortByDate(historial.filter(h => matchesPrinterFilter(h.impresora_id) && matchesDateFilter(h.created_at) && matchesSearch(h.impresoras?.nombre)), 'created_at');
+  const filteredPiezas = sortByDate(piezas.filter(p => matchesPrinterFilter(p.impresora_id) && matchesDateFilter(p.fecha_cambio) && matchesSearch(p.impresoras?.nombre)), 'fecha_cambio');
 
   const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setSortOrder('desc'); };
   const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || searchTerm;
@@ -133,7 +161,20 @@ export default function Historial() {
   const exportToCSV = () => {
     let data: Record<string, any>[] = [];
     if (activeTab === 'lecturas') {
-      data = filteredLecturas.map(l => { const pi = getPrinterInfo(l.impresora_id); return { Fecha: new Date(l.fecha_lectura).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null), Impresora: l.impresoras?.nombre || '', Modelo: pi?.modelo || '', Serie: l.impresoras?.serie || '', ContadorNegro: l.contador_negro || '', ContadorColor: l.contador_color || '', RegistradoPor: getProfileName(l.registrado_por), Notas: l.notas || '' }; });
+      data = filteredLecturas.map(l => {
+        const pi = getPrinterInfo(l.impresora_id);
+        const ant = lecturasConAnterior[l.id];
+        const consumoN = ant?.negroAnt != null && l.contador_negro != null ? l.contador_negro - ant.negroAnt : '';
+        const consumoC = ant?.colorAnt != null && l.contador_color != null ? l.contador_color - ant.colorAnt : '';
+        return {
+          Fecha: new Date(l.fecha_lectura).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null),
+          Impresora: l.impresoras?.nombre || '', Modelo: pi?.modelo || '', Serie: l.impresoras?.serie || '',
+          NegroAnterior: ant?.negroAnt?.toLocaleString() ?? '-', NegroActual: l.contador_negro?.toLocaleString() ?? '-',
+          ColorAnterior: ant?.colorAnt?.toLocaleString() ?? '-', ColorActual: l.contador_color?.toLocaleString() ?? '-',
+          ConsumoPeriodo: consumoN || consumoC ? `${consumoN || 0} + ${consumoC || 0}` : '-',
+          RegistradoPor: getProfileName(l.registrado_por), Notas: l.notas || ''
+        };
+      });
     } else if (activeTab === 'piezas') {
       data = filteredPiezas.map(p => { const pi = getPrinterInfo(p.impresora_id); return { Fecha: new Date(p.fecha_cambio).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null), Impresora: p.impresoras?.nombre || '', Pieza: p.nombre_pieza, Contador: p.contador_cambio, Tecnico: getProfileName(p.tecnico_id), Observacion: p.observaciones || p.motivo || '' }; });
     } else {
@@ -147,7 +188,7 @@ export default function Historial() {
     link.href = URL.createObjectURL(blob);
     link.download = `historial_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
-    toast({ title: 'Exportado', description: 'El archivo CSV/Excel ha sido descargado.' });
+    toast({ title: 'Exportado' });
   };
 
   const exportToPDF = () => {
@@ -158,8 +199,28 @@ export default function Historial() {
     let body: string[][] = [];
 
     if (activeTab === 'lecturas') {
-      head = [['Fecha', 'Filial', 'Sector', 'Impresora', 'Modelo', 'Serie', 'Negro Ant.', 'Negro Act.', 'Color Ant.', 'Color Act.', 'Uso Págs', 'Registrado Por']];
-      body = filteredLecturas.map(l => { const pi = getPrinterInfo(l.impresora_id); return [new Date(l.fecha_lectura).toLocaleString('es'), getFilialName(pi?.filial_id || null), getSectorName(pi?.sector_id || null), l.impresoras?.nombre || '-', pi?.modelo || '-', l.impresoras?.serie || '-', '-', l.contador_negro?.toLocaleString() ?? '-', '-', l.contador_color?.toLocaleString() ?? '-', '-', getProfileName(l.registrado_por)]; });
+      head = [['Fecha', 'Filial', 'Sector', 'Impresora', 'Modelo', 'Serie', 'Negro Ant.', 'Negro Act.', 'Color Ant.', 'Color Act.', 'Consumo Período', 'Registrado Por']];
+      body = filteredLecturas.map(l => {
+        const pi = getPrinterInfo(l.impresora_id);
+        const ant = lecturasConAnterior[l.id];
+        const consumoN = ant?.negroAnt != null && l.contador_negro != null ? l.contador_negro - ant.negroAnt : 0;
+        const consumoC = ant?.colorAnt != null && l.contador_color != null ? l.contador_color - ant.colorAnt : 0;
+        const consumoTotal = consumoN + consumoC;
+        return [
+          new Date(l.fecha_lectura).toLocaleString('es'),
+          getFilialName(pi?.filial_id || null),
+          getSectorName(pi?.sector_id || null),
+          l.impresoras?.nombre || '-',
+          pi?.modelo || '-',
+          l.impresoras?.serie || '-',
+          ant?.negroAnt?.toLocaleString() ?? '-',
+          l.contador_negro?.toLocaleString() ?? '-',
+          ant?.colorAnt?.toLocaleString() ?? '-',
+          l.contador_color?.toLocaleString() ?? '-',
+          consumoTotal > 0 ? consumoTotal.toLocaleString() : '-',
+          getProfileName(l.registrado_por),
+        ];
+      });
     } else if (activeTab === 'piezas') {
       head = [['Fecha', 'Filial', 'Sector', 'Impresora', 'Pieza', 'Contador', 'Técnico', 'Observación']];
       body = filteredPiezas.map(p => { const pi = getPrinterInfo(p.impresora_id); return [new Date(p.fecha_cambio).toLocaleString('es'), getFilialName(pi?.filial_id || null), getSectorName(pi?.sector_id || null), p.impresoras?.nombre || '-', p.nombre_pieza, p.contador_cambio.toLocaleString(), getProfileName(p.tecnico_id), p.observaciones || p.motivo || '-']; });
@@ -234,7 +295,7 @@ export default function Historial() {
               <div className="space-y-2"><Label className="text-sm">Hasta</Label><Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
               <div className="space-y-2">
                 <Label className="text-sm">Buscar</Label>
-                <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Impresora..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
+                <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Impresora, serie, modelo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
               </div>
             </div>
             <div className="flex justify-between items-center mt-4">
@@ -257,22 +318,55 @@ export default function Historial() {
               filteredLecturas.length === 0 ? <div className="text-center py-12 text-muted-foreground"><FileText className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay lecturas</p></div> : (
                 <div className="overflow-x-auto">
                   <Table>
-                    <TableHeader><TableRow><TableHead>Fecha/Hora</TableHead><TableHead>Filial</TableHead><TableHead>Sector</TableHead><TableHead>Impresora</TableHead><TableHead>Modelo</TableHead><TableHead>Serie</TableHead><TableHead className="text-right">Negro</TableHead><TableHead className="text-right">Color</TableHead><TableHead>Registrado Por</TableHead><TableHead>Notas</TableHead></TableRow></TableHeader>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Fecha/Hora</TableHead>
+                        <TableHead>Filial</TableHead>
+                        <TableHead>Sector</TableHead>
+                        <TableHead>Impresora</TableHead>
+                        <TableHead>Modelo</TableHead>
+                        <TableHead>Serie</TableHead>
+                        <TableHead className="text-right">Negro Ant.</TableHead>
+                        <TableHead className="text-right">Negro Act.</TableHead>
+                        <TableHead className="text-right">Color Ant.</TableHead>
+                        <TableHead className="text-right">Color Act.</TableHead>
+                        <TableHead className="text-right">Consumo</TableHead>
+                        <TableHead>Registrado Por</TableHead>
+                      </TableRow>
+                    </TableHeader>
                     <TableBody>
-                      {filteredLecturas.map(l => { const pi = getPrinterInfo(l.impresora_id); return (
-                        <TableRow key={l.id} className="hover:bg-muted/50">
-                          <TableCell className="whitespace-nowrap"><div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" /><div><div className="font-medium">{new Date(l.fecha_lectura).toLocaleDateString('es')}</div><div className="text-xs text-muted-foreground">{new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div></div></div></TableCell>
-                          <TableCell className="text-muted-foreground">{getFilialName(pi?.filial_id || null)}</TableCell>
-                          <TableCell className="text-muted-foreground">{getSectorName(pi?.sector_id || null)}</TableCell>
-                          <TableCell><div className="flex items-center gap-2"><Printer className="w-4 h-4 text-primary" /><span className="font-medium">{l.impresoras?.nombre}</span></div></TableCell>
-                          <TableCell>{pi?.modelo || '-'}</TableCell>
-                          <TableCell className="font-mono text-sm text-muted-foreground">{l.impresoras?.serie}</TableCell>
-                          <TableCell className="text-right font-medium">{l.contador_negro?.toLocaleString() ?? '-'}</TableCell>
-                          <TableCell className="text-right font-medium">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
-                          <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(l.registrado_por)}</span></div></TableCell>
-                          <TableCell className="max-w-[200px] truncate text-muted-foreground">{l.notas || '-'}</TableCell>
-                        </TableRow>
-                      ); })}
+                      {filteredLecturas.map(l => {
+                        const pi = getPrinterInfo(l.impresora_id);
+                        const ant = lecturasConAnterior[l.id];
+                        const consumoN = ant?.negroAnt != null && l.contador_negro != null ? l.contador_negro - ant.negroAnt : 0;
+                        const consumoC = ant?.colorAnt != null && l.contador_color != null ? l.contador_color - ant.colorAnt : 0;
+                        const consumoTotal = consumoN + consumoC;
+                        return (
+                          <TableRow key={l.id} className="hover:bg-muted/50">
+                            <TableCell className="whitespace-nowrap">
+                              <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-muted-foreground" />
+                                <div><div className="font-medium">{new Date(l.fecha_lectura).toLocaleDateString('es')}</div>
+                                <div className="text-xs text-muted-foreground">{new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div></div>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{getFilialName(pi?.filial_id || null)}</TableCell>
+                            <TableCell className="text-muted-foreground">{getSectorName(pi?.sector_id || null)}</TableCell>
+                            <TableCell><div className="flex items-center gap-2"><Printer className="w-4 h-4 text-primary" /><span className="font-medium">{l.impresoras?.nombre}</span></div></TableCell>
+                            <TableCell>{pi?.modelo || '-'}</TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">{l.impresoras?.serie}</TableCell>
+                            <TableCell className="text-right font-mono text-muted-foreground">{ant?.negroAnt?.toLocaleString() ?? '-'}</TableCell>
+                            <TableCell className="text-right font-mono font-medium">{l.contador_negro?.toLocaleString() ?? '-'}</TableCell>
+                            <TableCell className="text-right font-mono text-muted-foreground">{ant?.colorAnt?.toLocaleString() ?? '-'}</TableCell>
+                            <TableCell className="text-right font-mono font-medium">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
+                            <TableCell className="text-right">
+                              {consumoTotal > 0 ? (
+                                <Badge variant="secondary" className="font-mono">{consumoTotal.toLocaleString()}</Badge>
+                              ) : '-'}
+                            </TableCell>
+                            <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(l.registrado_por)}</span></div></TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
