@@ -113,13 +113,7 @@ const App = () => (
                     <Configuraciones />
                   </ProtectedRoute>
                 }
-              />
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <Configuraciones />
-                  </ProtectedRoute>
-                }
-              />
+              
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
