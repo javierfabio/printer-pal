@@ -393,6 +393,80 @@ export default function Piezas() {
     return { paginasUsadas, porcentaje, paginasRestantes, status };
   };
 
+  // Catalog helpers
+  const filteredCatalogo = catalogo.filter(p => {
+    if (!catalogoSearch) return true;
+    const q = catalogoSearch.toLowerCase();
+    return p.nombre_pieza.toLowerCase().includes(q) ||
+      p.tipo_pieza.toLowerCase().includes(q) ||
+      p.modelos_vinculados.some(m => m.toLowerCase().includes(q));
+  });
+
+  const openEditCatalogo = (p: PiezaCatalogo) => {
+    setEditingCatalogo(p);
+    setCatalogoForm({
+      nombre_pieza: p.nombre_pieza, tipo_pieza: p.tipo_pieza,
+      modelos_vinculados: p.modelos_vinculados.join(', '),
+      vida_util_estimada: p.vida_util_estimada, stock_actual: p.stock_actual,
+      notas: p.notas || '',
+    });
+    setCatalogoDialogOpen(true);
+  };
+
+  const openNewCatalogo = () => {
+    setEditingCatalogo(null);
+    setCatalogoForm({ nombre_pieza: '', tipo_pieza: 'toner_negro', modelos_vinculados: '', vida_util_estimada: 0, stock_actual: 0, notas: '' });
+    setCatalogoDialogOpen(true);
+  };
+
+  const handleSaveCatalogo = async () => {
+    const modelos = catalogoForm.modelos_vinculados.split(',').map(m => m.trim()).filter(Boolean);
+    const payload = {
+      nombre_pieza: catalogoForm.nombre_pieza,
+      tipo_pieza: catalogoForm.tipo_pieza,
+      modelos_vinculados: modelos,
+      vida_util_estimada: catalogoForm.vida_util_estimada,
+      stock_actual: catalogoForm.stock_actual,
+      notas: catalogoForm.notas || null,
+      fecha_ultima_carga: catalogoForm.stock_actual > 0 ? new Date().toISOString() : editingCatalogo?.fecha_ultima_carga || null,
+    };
+    let error;
+    if (editingCatalogo) {
+      ({ error } = await supabase.from('piezas_catalogo').update(payload).eq('id', editingCatalogo.id));
+    } else {
+      ({ error } = await supabase.from('piezas_catalogo').insert(payload));
+    }
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: editingCatalogo ? 'Actualizado' : 'Creado' });
+      setCatalogoDialogOpen(false);
+      fetchData();
+    }
+  };
+
+  const exportCatalogoPDF = () => {
+    const doc = new jsPDF('landscape');
+    const startY = addPDFHeader(doc, 'Catálogo de Piezas por Modelo');
+    autoTable(doc, {
+      startY,
+      head: [['Pieza', 'Tipo', 'Modelo(s)', 'Vida Útil', 'Stock', 'Última Carga']],
+      body: filteredCatalogo.map(p => [
+        p.nombre_pieza,
+        TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza,
+        p.modelos_vinculados.join(', '),
+        p.vida_util_estimada.toLocaleString(),
+        p.stock_actual.toString(),
+        p.fecha_ultima_carga ? new Date(p.fecha_ultima_carga).toLocaleDateString('es') : '-',
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 8 },
+    });
+    addPDFPageNumbers(doc);
+    doc.save(`catalogo_piezas_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
   const isAdmin = role === 'admin';
 
   // Piezas con alertas
