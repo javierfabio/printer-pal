@@ -759,6 +759,10 @@ export default function Piezas() {
               <History className="w-4 h-4" />
               Historial de Cambios
             </TabsTrigger>
+            <TabsTrigger value="catalogo" className="gap-2">
+              <Package className="w-4 h-4" />
+              Catálogo por Modelo
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="configuracion" className="gap-2">
                 <Settings className="w-4 h-4" />
