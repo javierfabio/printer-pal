@@ -139,6 +139,16 @@ export default function Piezas() {
   const [addConfigDialogOpen, setAddConfigDialogOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<ConfiguracionPieza | null>(null);
 
+  // Catalog state
+  const [catalogo, setCatalogo] = useState<PiezaCatalogo[]>([]);
+  const [catalogoSearch, setCatalogoSearch] = useState('');
+  const [catalogoDialogOpen, setCatalogoDialogOpen] = useState(false);
+  const [editingCatalogo, setEditingCatalogo] = useState<PiezaCatalogo | null>(null);
+  const [catalogoForm, setCatalogoForm] = useState({
+    nombre_pieza: '', tipo_pieza: 'toner_negro', modelos_vinculados: '',
+    vida_util_estimada: 0, stock_actual: 0, notas: '',
+  });
+
   // Form state for new config
   const [newConfigData, setNewConfigData] = useState({
     tipo_pieza: '' as TipoPieza | '',
