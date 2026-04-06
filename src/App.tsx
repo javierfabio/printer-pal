@@ -99,14 +99,6 @@ const App = () => (
                 }
               />
               <Route
-                path="/dashboard/catalogo-piezas"
-                element={
-                  <ProtectedRoute>
-                    <CatalogoPiezas />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/dashboard/configuraciones"
                 element={
                   <ProtectedRoute requireAdmin>
