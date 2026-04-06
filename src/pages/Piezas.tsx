@@ -961,7 +961,85 @@ export default function Piezas() {
             </Card>
           </TabsContent>
 
-          {/* Configuración Tab */}
+          {/* Catálogo Tab */}
+          <TabsContent value="catalogo">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <CardTitle>Catálogo de Piezas por Modelo</CardTitle>
+                    <CardDescription>Piezas vinculadas a modelos de impresoras ({filteredCatalogo.length} piezas)</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={exportCatalogoPDF} variant="outline" size="sm" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+                    {isAdmin && <Button onClick={openNewCatalogo} size="sm" className="gap-2"><Plus className="w-4 h-4" />Nueva Pieza</Button>}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por pieza, tipo o modelo..." value={catalogoSearch} onChange={e => setCatalogoSearch(e.target.value)} className="pl-9" />
+                </div>
+                {loading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                ) : filteredCatalogo.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                    <p>No hay piezas en el catálogo</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre de Pieza</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Modelo(s) Vinculado(s)</TableHead>
+                          <TableHead className="text-right">Vida Útil</TableHead>
+                          <TableHead className="text-right">Stock Actual</TableHead>
+                          <TableHead>Última Carga</TableHead>
+                          {isAdmin && <TableHead className="w-10"></TableHead>}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCatalogo.map(p => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.nombre_pieza}</TableCell>
+                            <TableCell><Badge variant="outline">{TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza}</Badge></TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {p.modelos_vinculados.map(m => (
+                                  <Badge key={m} variant="secondary" className="text-xs">{m}</Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">{p.vida_util_estimada.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={p.stock_actual === 0 ? 'destructive' : p.stock_actual <= 2 ? 'secondary' : 'default'}>
+                                {p.stock_actual}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {p.fecha_ultima_carga ? new Date(p.fecha_ultima_carga).toLocaleDateString('es') : '-'}
+                            </TableCell>
+                            {isAdmin && (
+                              <TableCell>
+                                <Button variant="ghost" size="icon" onClick={() => openEditCatalogo(p)}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {isAdmin && (
             <TabsContent value="configuracion">
               <Card>
