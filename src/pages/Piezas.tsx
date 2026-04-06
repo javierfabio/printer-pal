@@ -97,7 +97,19 @@ interface Impresora {
   tipo_impresion: string;
 }
 
-const TIPO_PIEZA_LABELS: Record<TipoPieza, string> = {
+interface PiezaCatalogo {
+  id: string;
+  nombre_pieza: string;
+  tipo_pieza: string;
+  modelos_vinculados: string[];
+  vida_util_estimada: number;
+  stock_actual: number;
+  fecha_ultima_carga: string | null;
+  notas: string | null;
+  activo: boolean;
+}
+
+const TIPO_PIEZA_LABELS: Record<string, string> = {
   toner_negro: 'Tóner Negro',
   toner_color: 'Tóner Color',
   fusor: 'Fusor',
