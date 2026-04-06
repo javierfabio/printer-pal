@@ -189,7 +189,7 @@ export default function Piezas() {
   const fetchData = async () => {
     setLoading(true);
     
-    const [piezasResp, historialResp, configResp, impResp] = await Promise.all([
+    const [piezasResp, historialResp, configResp, impResp, catResp] = await Promise.all([
       supabase
         .from('piezas_impresora')
         .select('*, impresoras(nombre, serie, contador_negro_actual, contador_color_actual)')
@@ -209,12 +209,18 @@ export default function Piezas() {
         .select('id, nombre, serie, modelo, contador_negro_actual, contador_color_actual, tipo_impresion')
         .eq('estado', 'activa')
         .order('nombre'),
+      supabase
+        .from('piezas_catalogo')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre_pieza'),
     ]);
 
     if (piezasResp.data) setPiezas(piezasResp.data as PiezaImpresora[]);
     if (historialResp.data) setHistorial(historialResp.data as HistorialPieza[]);
     if (configResp.data) setConfiguracion(configResp.data as ConfiguracionPieza[]);
     if (impResp.data) setImpresoras(impResp.data);
+    if (catResp.data) setCatalogo(catResp.data as PiezaCatalogo[]);
     
     setLoading(false);
   };
