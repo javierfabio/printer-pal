@@ -61,6 +61,65 @@ export default function Configuraciones() {
   const [inactivityMinutes, setInactivityMinutes] = useState(getInactivityTimeout());
   const [reportConfig, setReportConfig] = useState<ReportConfig>(getReportConfig());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(getSystemConfig());
+  const [exportingBackup, setExportingBackup] = useState(false);
+
+  const exportDatabaseBackup = async () => {
+    setExportingBackup(true);
+    try {
+      const zip = new JSZip();
+      const tables = [
+        { name: 'impresoras', query: supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)') },
+        { name: 'lecturas_contadores', query: supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie, modelo)') },
+        { name: 'piezas_impresora', query: supabase.from('piezas_impresora').select('*, impresoras(nombre, serie)') },
+        { name: 'historial_piezas', query: supabase.from('historial_piezas').select('*, impresoras(nombre, serie)') },
+        { name: 'historial_cambios', query: supabase.from('historial_cambios').select('*, impresoras(nombre, serie)') },
+        { name: 'piezas_catalogo', query: supabase.from('piezas_catalogo').select('*') },
+        { name: 'configuracion_piezas', query: supabase.from('configuracion_piezas').select('*') },
+        { name: 'costos_consumibles', query: supabase.from('costos_consumibles').select('*') },
+        { name: 'costos_reparacion', query: supabase.from('costos_reparacion').select('*') },
+        { name: 'precios_modelo', query: supabase.from('precios_modelo').select('*') },
+        { name: 'filiales', query: supabase.from('filiales').select('*') },
+        { name: 'sectores', query: supabase.from('sectores').select('*') },
+      ];
+
+      for (const table of tables) {
+        const { data, error } = await table.query;
+        if (error || !data || data.length === 0) {
+          zip.file(`${table.name}.csv`, 'Sin datos');
+          continue;
+        }
+        const flattenRow = (row: any) => {
+          const flat: Record<string, string> = {};
+          for (const [key, value] of Object.entries(row)) {
+            if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+              for (const [subKey, subValue] of Object.entries(value as Record<string, any>)) {
+                flat[`${key}_${subKey}`] = String(subValue ?? '');
+              }
+            } else if (Array.isArray(value)) {
+              flat[key] = value.join('; ');
+            } else {
+              flat[key] = String(value ?? '');
+            }
+          }
+          return flat;
+        };
+        const flatData = data.map(flattenRow);
+        const headers = Object.keys(flatData[0]);
+        const csvRows = [headers.join(','), ...flatData.map(row => headers.map(h => `"${(row[h] || '').replace(/"/g, '""')}"`).join(','))];
+        zip.file(`${table.name}.csv`, csvRows.join('\n'));
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `backup_printcontrol_${new Date().toISOString().split('T')[0]}.zip`;
+      link.click();
+      toast({ title: 'Backup generado', description: 'Se descargó el archivo ZIP con todos los datos.' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar el backup.' });
+    }
+    setExportingBackup(false);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
