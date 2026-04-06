@@ -23,7 +23,9 @@ import {
   Printer,
   Pencil,
   Download,
-  FileText
+  FileText,
+  Package,
+  Search
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -95,7 +97,19 @@ interface Impresora {
   tipo_impresion: string;
 }
 
-const TIPO_PIEZA_LABELS: Record<TipoPieza, string> = {
+interface PiezaCatalogo {
+  id: string;
+  nombre_pieza: string;
+  tipo_pieza: string;
+  modelos_vinculados: string[];
+  vida_util_estimada: number;
+  stock_actual: number;
+  fecha_ultima_carga: string | null;
+  notas: string | null;
+  activo: boolean;
+}
+
+const TIPO_PIEZA_LABELS: Record<string, string> = {
   toner_negro: 'Tóner Negro',
   toner_color: 'Tóner Color',
   fusor: 'Fusor',
@@ -124,6 +138,16 @@ export default function Piezas() {
   const [editConfigDialogOpen, setEditConfigDialogOpen] = useState(false);
   const [addConfigDialogOpen, setAddConfigDialogOpen] = useState(false);
   const [selectedConfig, setSelectedConfig] = useState<ConfiguracionPieza | null>(null);
+
+  // Catalog state
+  const [catalogo, setCatalogo] = useState<PiezaCatalogo[]>([]);
+  const [catalogoSearch, setCatalogoSearch] = useState('');
+  const [catalogoDialogOpen, setCatalogoDialogOpen] = useState(false);
+  const [editingCatalogo, setEditingCatalogo] = useState<PiezaCatalogo | null>(null);
+  const [catalogoForm, setCatalogoForm] = useState({
+    nombre_pieza: '', tipo_pieza: 'toner_negro', modelos_vinculados: '',
+    vida_util_estimada: 0, stock_actual: 0, notas: '',
+  });
 
   // Form state for new config
   const [newConfigData, setNewConfigData] = useState({
@@ -165,7 +189,7 @@ export default function Piezas() {
   const fetchData = async () => {
     setLoading(true);
     
-    const [piezasResp, historialResp, configResp, impResp] = await Promise.all([
+    const [piezasResp, historialResp, configResp, impResp, catResp] = await Promise.all([
       supabase
         .from('piezas_impresora')
         .select('*, impresoras(nombre, serie, contador_negro_actual, contador_color_actual)')
@@ -185,12 +209,18 @@ export default function Piezas() {
         .select('id, nombre, serie, modelo, contador_negro_actual, contador_color_actual, tipo_impresion')
         .eq('estado', 'activa')
         .order('nombre'),
+      supabase
+        .from('piezas_catalogo')
+        .select('*')
+        .eq('activo', true)
+        .order('nombre_pieza'),
     ]);
 
     if (piezasResp.data) setPiezas(piezasResp.data as PiezaImpresora[]);
     if (historialResp.data) setHistorial(historialResp.data as HistorialPieza[]);
     if (configResp.data) setConfiguracion(configResp.data as ConfiguracionPieza[]);
     if (impResp.data) setImpresoras(impResp.data);
+    if (catResp.data) setCatalogo(catResp.data as PiezaCatalogo[]);
     
     setLoading(false);
   };
@@ -361,6 +391,80 @@ export default function Piezas() {
     else if (porcentaje >= umbralAdvertencia) status = 'warning';
 
     return { paginasUsadas, porcentaje, paginasRestantes, status };
+  };
+
+  // Catalog helpers
+  const filteredCatalogo = catalogo.filter(p => {
+    if (!catalogoSearch) return true;
+    const q = catalogoSearch.toLowerCase();
+    return p.nombre_pieza.toLowerCase().includes(q) ||
+      p.tipo_pieza.toLowerCase().includes(q) ||
+      p.modelos_vinculados.some(m => m.toLowerCase().includes(q));
+  });
+
+  const openEditCatalogo = (p: PiezaCatalogo) => {
+    setEditingCatalogo(p);
+    setCatalogoForm({
+      nombre_pieza: p.nombre_pieza, tipo_pieza: p.tipo_pieza,
+      modelos_vinculados: p.modelos_vinculados.join(', '),
+      vida_util_estimada: p.vida_util_estimada, stock_actual: p.stock_actual,
+      notas: p.notas || '',
+    });
+    setCatalogoDialogOpen(true);
+  };
+
+  const openNewCatalogo = () => {
+    setEditingCatalogo(null);
+    setCatalogoForm({ nombre_pieza: '', tipo_pieza: 'toner_negro', modelos_vinculados: '', vida_util_estimada: 0, stock_actual: 0, notas: '' });
+    setCatalogoDialogOpen(true);
+  };
+
+  const handleSaveCatalogo = async () => {
+    const modelos = catalogoForm.modelos_vinculados.split(',').map(m => m.trim()).filter(Boolean);
+    const payload = {
+      nombre_pieza: catalogoForm.nombre_pieza,
+      tipo_pieza: catalogoForm.tipo_pieza,
+      modelos_vinculados: modelos,
+      vida_util_estimada: catalogoForm.vida_util_estimada,
+      stock_actual: catalogoForm.stock_actual,
+      notas: catalogoForm.notas || null,
+      fecha_ultima_carga: catalogoForm.stock_actual > 0 ? new Date().toISOString() : editingCatalogo?.fecha_ultima_carga || null,
+    };
+    let error;
+    if (editingCatalogo) {
+      ({ error } = await supabase.from('piezas_catalogo').update(payload).eq('id', editingCatalogo.id));
+    } else {
+      ({ error } = await supabase.from('piezas_catalogo').insert(payload));
+    }
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: editingCatalogo ? 'Actualizado' : 'Creado' });
+      setCatalogoDialogOpen(false);
+      fetchData();
+    }
+  };
+
+  const exportCatalogoPDF = () => {
+    const doc = new jsPDF('landscape');
+    const startY = addPDFHeader(doc, 'Catálogo de Piezas por Modelo');
+    autoTable(doc, {
+      startY,
+      head: [['Pieza', 'Tipo', 'Modelo(s)', 'Vida Útil', 'Stock', 'Última Carga']],
+      body: filteredCatalogo.map(p => [
+        p.nombre_pieza,
+        TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza,
+        p.modelos_vinculados.join(', '),
+        p.vida_util_estimada.toLocaleString(),
+        p.stock_actual.toString(),
+        p.fecha_ultima_carga ? new Date(p.fecha_ultima_carga).toLocaleDateString('es') : '-',
+      ]),
+      theme: 'striped',
+      headStyles: { fillColor: [59, 130, 246], textColor: 255 },
+      styles: { fontSize: 8 },
+    });
+    addPDFPageNumbers(doc);
+    doc.save(`catalogo_piezas_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const isAdmin = role === 'admin';
@@ -655,6 +759,10 @@ export default function Piezas() {
               <History className="w-4 h-4" />
               Historial de Cambios
             </TabsTrigger>
+            <TabsTrigger value="catalogo" className="gap-2">
+              <Package className="w-4 h-4" />
+              Catálogo por Modelo
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="configuracion" className="gap-2">
                 <Settings className="w-4 h-4" />
@@ -853,7 +961,85 @@ export default function Piezas() {
             </Card>
           </TabsContent>
 
-          {/* Configuración Tab */}
+          {/* Catálogo Tab */}
+          <TabsContent value="catalogo">
+            <Card>
+              <CardHeader>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div>
+                    <CardTitle>Catálogo de Piezas por Modelo</CardTitle>
+                    <CardDescription>Piezas vinculadas a modelos de impresoras ({filteredCatalogo.length} piezas)</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={exportCatalogoPDF} variant="outline" size="sm" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+                    {isAdmin && <Button onClick={openNewCatalogo} size="sm" className="gap-2"><Plus className="w-4 h-4" />Nueva Pieza</Button>}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="relative max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Buscar por pieza, tipo o modelo..." value={catalogoSearch} onChange={e => setCatalogoSearch(e.target.value)} className="pl-9" />
+                </div>
+                {loading ? (
+                  <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                ) : filteredCatalogo.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <Package className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                    <p>No hay piezas en el catálogo</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre de Pieza</TableHead>
+                          <TableHead>Tipo</TableHead>
+                          <TableHead>Modelo(s) Vinculado(s)</TableHead>
+                          <TableHead className="text-right">Vida Útil</TableHead>
+                          <TableHead className="text-right">Stock Actual</TableHead>
+                          <TableHead>Última Carga</TableHead>
+                          {isAdmin && <TableHead className="w-10"></TableHead>}
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredCatalogo.map(p => (
+                          <TableRow key={p.id}>
+                            <TableCell className="font-medium">{p.nombre_pieza}</TableCell>
+                            <TableCell><Badge variant="outline">{TIPO_PIEZA_LABELS[p.tipo_pieza] || p.tipo_pieza}</Badge></TableCell>
+                            <TableCell>
+                              <div className="flex flex-wrap gap-1">
+                                {p.modelos_vinculados.map(m => (
+                                  <Badge key={m} variant="secondary" className="text-xs">{m}</Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono">{p.vida_util_estimada.toLocaleString()}</TableCell>
+                            <TableCell className="text-right">
+                              <Badge variant={p.stock_actual === 0 ? 'destructive' : p.stock_actual <= 2 ? 'secondary' : 'default'}>
+                                {p.stock_actual}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">
+                              {p.fecha_ultima_carga ? new Date(p.fecha_ultima_carga).toLocaleDateString('es') : '-'}
+                            </TableCell>
+                            {isAdmin && (
+                              <TableCell>
+                                <Button variant="ghost" size="icon" onClick={() => openEditCatalogo(p)}>
+                                  <Pencil className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {isAdmin && (
             <TabsContent value="configuracion">
               <Card>
@@ -1097,6 +1283,55 @@ export default function Piezas() {
           onOpenChange={setEditConfigDialogOpen}
           onConfigUpdated={fetchData}
         />
+
+        {/* Catalogo Dialog */}
+        <Dialog open={catalogoDialogOpen} onOpenChange={setCatalogoDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingCatalogo ? 'Editar Pieza del Catálogo' : 'Nueva Pieza del Catálogo'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Nombre de Pieza *</Label>
+                <Input value={catalogoForm.nombre_pieza} onChange={e => setCatalogoForm({ ...catalogoForm, nombre_pieza: e.target.value })} placeholder="Ej: Tóner Negro" />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={catalogoForm.tipo_pieza} onValueChange={v => setCatalogoForm({ ...catalogoForm, tipo_pieza: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    {Object.entries(TIPO_PIEZA_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Modelo(s) Vinculado(s) *</Label>
+                <Input value={catalogoForm.modelos_vinculados} onChange={e => setCatalogoForm({ ...catalogoForm, modelos_vinculados: e.target.value })} placeholder="Ej: C5100S, IM400C (separados por coma)" />
+                <p className="text-xs text-muted-foreground">Separá los modelos con coma</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Vida Útil Estimada</Label>
+                  <Input type="number" value={catalogoForm.vida_util_estimada} onChange={e => setCatalogoForm({ ...catalogoForm, vida_util_estimada: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Stock Actual</Label>
+                  <Input type="number" value={catalogoForm.stock_actual} onChange={e => setCatalogoForm({ ...catalogoForm, stock_actual: parseInt(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Input value={catalogoForm.notas} onChange={e => setCatalogoForm({ ...catalogoForm, notas: e.target.value })} placeholder="Opcional" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setCatalogoDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveCatalogo} disabled={!catalogoForm.nombre_pieza || !catalogoForm.modelos_vinculados}>
+                  {editingCatalogo ? 'Guardar Cambios' : 'Crear Pieza'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

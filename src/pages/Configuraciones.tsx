@@ -7,7 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code } from 'lucide-react';
+import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code, DatabaseBackup } from 'lucide-react';
+import JSZip from 'jszip';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -60,6 +61,65 @@ export default function Configuraciones() {
   const [inactivityMinutes, setInactivityMinutes] = useState(getInactivityTimeout());
   const [reportConfig, setReportConfig] = useState<ReportConfig>(getReportConfig());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(getSystemConfig());
+  const [exportingBackup, setExportingBackup] = useState(false);
+
+  const exportDatabaseBackup = async () => {
+    setExportingBackup(true);
+    try {
+      const zip = new JSZip();
+      const tables = [
+        { name: 'impresoras', query: supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)') },
+        { name: 'lecturas_contadores', query: supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie, modelo)') },
+        { name: 'piezas_impresora', query: supabase.from('piezas_impresora').select('*, impresoras(nombre, serie)') },
+        { name: 'historial_piezas', query: supabase.from('historial_piezas').select('*, impresoras(nombre, serie)') },
+        { name: 'historial_cambios', query: supabase.from('historial_cambios').select('*, impresoras(nombre, serie)') },
+        { name: 'piezas_catalogo', query: supabase.from('piezas_catalogo').select('*') },
+        { name: 'configuracion_piezas', query: supabase.from('configuracion_piezas').select('*') },
+        { name: 'costos_consumibles', query: supabase.from('costos_consumibles').select('*') },
+        { name: 'costos_reparacion', query: supabase.from('costos_reparacion').select('*') },
+        { name: 'precios_modelo', query: supabase.from('precios_modelo').select('*') },
+        { name: 'filiales', query: supabase.from('filiales').select('*') },
+        { name: 'sectores', query: supabase.from('sectores').select('*') },
+      ];
+
+      for (const table of tables) {
+        const { data, error } = await table.query;
+        if (error || !data || data.length === 0) {
+          zip.file(`${table.name}.csv`, 'Sin datos');
+          continue;
+        }
+        const flattenRow = (row: any) => {
+          const flat: Record<string, string> = {};
+          for (const [key, value] of Object.entries(row)) {
+            if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+              for (const [subKey, subValue] of Object.entries(value as Record<string, any>)) {
+                flat[`${key}_${subKey}`] = String(subValue ?? '');
+              }
+            } else if (Array.isArray(value)) {
+              flat[key] = value.join('; ');
+            } else {
+              flat[key] = String(value ?? '');
+            }
+          }
+          return flat;
+        };
+        const flatData = data.map(flattenRow);
+        const headers = Object.keys(flatData[0]);
+        const csvRows = [headers.join(','), ...flatData.map(row => headers.map(h => `"${(row[h] || '').replace(/"/g, '""')}"`).join(','))];
+        zip.file(`${table.name}.csv`, csvRows.join('\n'));
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `backup_printcontrol_${new Date().toISOString().split('T')[0]}.zip`;
+      link.click();
+      toast({ title: 'Backup generado', description: 'Se descargó el archivo ZIP con todos los datos.' });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar el backup.' });
+    }
+    setExportingBackup(false);
+  };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -128,7 +188,21 @@ export default function Configuraciones() {
           <p className="text-muted-foreground mt-1">Administración del sistema, sectores, filiales y personalización</p>
         </div>
 
-        {/* System Config */}
+        {/* Database Backup */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><DatabaseBackup className="w-5 h-5" />Migración / Backup de Datos</CardTitle>
+            <CardDescription>Exporta toda la base de datos en un archivo ZIP con CSVs separados por tabla, ideal para migrar a otro entorno o guardar una copia local.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={exportDatabaseBackup} disabled={exportingBackup} className="gap-2">
+              {exportingBackup ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
+              {exportingBackup ? 'Generando backup...' : 'Descargar Backup Completo (ZIP)'}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">Incluye: impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Code className="w-5 h-5" />Configuración del Sistema</CardTitle>
