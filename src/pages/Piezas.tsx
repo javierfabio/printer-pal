@@ -1283,6 +1283,55 @@ export default function Piezas() {
           onOpenChange={setEditConfigDialogOpen}
           onConfigUpdated={fetchData}
         />
+
+        {/* Catalogo Dialog */}
+        <Dialog open={catalogoDialogOpen} onOpenChange={setCatalogoDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>{editingCatalogo ? 'Editar Pieza del Catálogo' : 'Nueva Pieza del Catálogo'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div className="space-y-2">
+                <Label>Nombre de Pieza *</Label>
+                <Input value={catalogoForm.nombre_pieza} onChange={e => setCatalogoForm({ ...catalogoForm, nombre_pieza: e.target.value })} placeholder="Ej: Tóner Negro" />
+              </div>
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select value={catalogoForm.tipo_pieza} onValueChange={v => setCatalogoForm({ ...catalogoForm, tipo_pieza: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-popover">
+                    {Object.entries(TIPO_PIEZA_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Modelo(s) Vinculado(s) *</Label>
+                <Input value={catalogoForm.modelos_vinculados} onChange={e => setCatalogoForm({ ...catalogoForm, modelos_vinculados: e.target.value })} placeholder="Ej: C5100S, IM400C (separados por coma)" />
+                <p className="text-xs text-muted-foreground">Separá los modelos con coma</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Vida Útil Estimada</Label>
+                  <Input type="number" value={catalogoForm.vida_util_estimada} onChange={e => setCatalogoForm({ ...catalogoForm, vida_util_estimada: parseInt(e.target.value) || 0 })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Stock Actual</Label>
+                  <Input type="number" value={catalogoForm.stock_actual} onChange={e => setCatalogoForm({ ...catalogoForm, stock_actual: parseInt(e.target.value) || 0 })} />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Input value={catalogoForm.notas} onChange={e => setCatalogoForm({ ...catalogoForm, notas: e.target.value })} placeholder="Opcional" />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setCatalogoDialogOpen(false)}>Cancelar</Button>
+                <Button onClick={handleSaveCatalogo} disabled={!catalogoForm.nombre_pieza || !catalogoForm.modelos_vinculados}>
+                  {editingCatalogo ? 'Guardar Cambios' : 'Crear Pieza'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
