@@ -162,10 +162,19 @@ export default function Impresoras() {
     };
 
     if (editingPrinter) {
-      const changes: { campo: string; anterior: string; nuevo: string }[] = [];
-      if (editingPrinter.sector_id !== dataToSave.sector_id) changes.push({ campo: 'sector', anterior: sectores.find(s => s.id === editingPrinter.sector_id)?.nombre || 'Sin sector', nuevo: sectores.find(s => s.id === dataToSave.sector_id)?.nombre || 'Sin sector' });
-      if (editingPrinter.estado !== dataToSave.estado) changes.push({ campo: 'estado', anterior: editingPrinter.estado, nuevo: dataToSave.estado });
-      if (editingPrinter.filial_id !== dataToSave.filial_id) changes.push({ campo: 'filial', anterior: filiales.find(f => f.id === editingPrinter.filial_id)?.nombre || 'Sin filial', nuevo: filiales.find(f => f.id === dataToSave.filial_id)?.nombre || 'Sin filial' });
+      const fieldsToTrack: { campo: string; anterior: () => string; nuevo: () => string; changed: boolean }[] = [
+        { campo: 'sector', anterior: () => sectores.find(s => s.id === editingPrinter.sector_id)?.nombre || 'Sin sector', nuevo: () => sectores.find(s => s.id === dataToSave.sector_id)?.nombre || 'Sin sector', changed: editingPrinter.sector_id !== dataToSave.sector_id },
+        { campo: 'filial', anterior: () => filiales.find(f => f.id === editingPrinter.filial_id)?.nombre || 'Sin filial', nuevo: () => filiales.find(f => f.id === dataToSave.filial_id)?.nombre || 'Sin filial', changed: editingPrinter.filial_id !== dataToSave.filial_id },
+        { campo: 'estado', anterior: () => editingPrinter.estado, nuevo: () => dataToSave.estado, changed: editingPrinter.estado !== dataToSave.estado },
+        { campo: 'nombre', anterior: () => editingPrinter.nombre, nuevo: () => dataToSave.nombre, changed: editingPrinter.nombre !== dataToSave.nombre },
+        { campo: 'modelo', anterior: () => editingPrinter.modelo, nuevo: () => dataToSave.modelo, changed: editingPrinter.modelo !== dataToSave.modelo },
+        { campo: 'tipo_consumo', anterior: () => editingPrinter.tipo_consumo, nuevo: () => dataToSave.tipo_consumo, changed: editingPrinter.tipo_consumo !== dataToSave.tipo_consumo },
+        { campo: 'tipo_impresion', anterior: () => editingPrinter.tipo_impresion, nuevo: () => dataToSave.tipo_impresion, changed: editingPrinter.tipo_impresion !== dataToSave.tipo_impresion },
+        { campo: 'descripcion', anterior: () => editingPrinter.descripcion || '', nuevo: () => dataToSave.descripcion || '', changed: (editingPrinter.descripcion || '') !== (dataToSave.descripcion || '') },
+        { campo: 'lectura_ip', anterior: () => editingPrinter.lectura_ip ? 'Sí' : 'No', nuevo: () => dataToSave.lectura_ip ? 'Sí' : 'No', changed: editingPrinter.lectura_ip !== dataToSave.lectura_ip },
+        { campo: 'ip_address', anterior: () => editingPrinter.ip_address || '', nuevo: () => dataToSave.ip_address || '', changed: (editingPrinter.ip_address || '') !== (dataToSave.ip_address || '') },
+      ];
+      const changes = fieldsToTrack.filter(f => f.changed).map(f => ({ campo: f.campo, anterior: f.anterior(), nuevo: f.nuevo() }));
 
       const { error } = await supabase.from('impresoras').update({
         ...dataToSave,

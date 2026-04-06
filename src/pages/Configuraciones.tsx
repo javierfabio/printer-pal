@@ -188,7 +188,21 @@ export default function Configuraciones() {
           <p className="text-muted-foreground mt-1">Administración del sistema, sectores, filiales y personalización</p>
         </div>
 
-        {/* System Config */}
+        {/* Database Backup */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><DatabaseBackup className="w-5 h-5" />Migración / Backup de Datos</CardTitle>
+            <CardDescription>Exporta toda la base de datos en un archivo ZIP con CSVs separados por tabla, ideal para migrar a otro entorno o guardar una copia local.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={exportDatabaseBackup} disabled={exportingBackup} className="gap-2">
+              {exportingBackup ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
+              {exportingBackup ? 'Generando backup...' : 'Descargar Backup Completo (ZIP)'}
+            </Button>
+            <p className="text-xs text-muted-foreground mt-2">Incluye: impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2"><Code className="w-5 h-5" />Configuración del Sistema</CardTitle>
