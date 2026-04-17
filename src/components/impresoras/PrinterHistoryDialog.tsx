@@ -5,10 +5,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, History, FileText, Wrench, ArrowRight, Calendar, User } from 'lucide-react';
+import { Loader2, History, FileText, Wrench, Calendar, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import { RepairTimeline } from './RepairTimeline';
 
 interface TimelineEvent {
   id: string;
@@ -63,7 +65,6 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
 
     const timeline: TimelineEvent[] = [];
 
-    // Map cambios
     (cambiosResp.data || []).forEach((h: any) => {
       timeline.push({
         id: h.id,
@@ -76,7 +77,6 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
       });
     });
 
-    // Map lecturas
     (lecturasResp.data || []).forEach((l: any) => {
       const parts: string[] = [];
       if (l.contador_negro !== null) parts.push(`Negro: ${l.contador_negro.toLocaleString()}`);
@@ -92,7 +92,6 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
       });
     });
 
-    // Map piezas
     (piezasResp.data || []).forEach((p: any) => {
       timeline.push({
         id: p.id,
@@ -104,7 +103,6 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
       });
     });
 
-    // Sort by date descending
     timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     setEvents(timeline);
@@ -132,7 +130,7 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh]">
+      <DialogContent className="max-w-3xl max-h-[85vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="w-5 h-5" />
@@ -140,62 +138,67 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
           </DialogTitle>
         </DialogHeader>
 
-        <div className="overflow-y-auto max-h-[65vh] pr-1">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : events.length === 0 ? (
-            <p className="text-center text-muted-foreground py-12">No hay registros para esta impresora</p>
-          ) : (
-            <div className="relative pl-6 space-y-0">
-              {/* Timeline line */}
-              <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-border" />
+        <Tabs defaultValue="general" className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="general">Cambios, lecturas y piezas</TabsTrigger>
+            <TabsTrigger value="reparaciones" className="gap-1"><Wrench className="w-4 h-4" />Reparaciones</TabsTrigger>
+          </TabsList>
 
-              {events.map((event, idx) => (
-                <div key={event.id} className="relative pb-4">
-                  {/* Dot */}
-                  <div className={cn(
-                    "absolute -left-6 top-1 w-5 h-5 rounded-full border-2 border-background flex items-center justify-center",
-                    event.type === 'cambio' && "bg-primary text-primary-foreground",
-                    event.type === 'lectura' && "bg-blue-500 text-white",
-                    event.type === 'pieza' && "bg-orange-500 text-white",
-                  )}>
-                    {getTypeIcon(event.type)}
-                  </div>
-
-                  <div className="bg-muted/50 rounded-lg p-3 ml-2">
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {getTypeBadge(event.type)}
-                        <span className="font-medium text-sm">{event.title}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(event.date).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        {' '}
-                        {new Date(event.date).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    </div>
-
-                    <p className="text-sm">{event.detail}</p>
-
-                    {event.secondary && (
-                      <p className="text-xs text-muted-foreground mt-1 italic">{event.secondary}</p>
-                    )}
-
-                    {event.user && (
-                      <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                        <User className="w-3 h-3" />
-                        {event.user}
-                      </p>
-                    )}
-                  </div>
+          <TabsContent value="general">
+            <div className="overflow-y-auto max-h-[60vh] pr-1 mt-2">
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
                 </div>
-              ))}
+              ) : events.length === 0 ? (
+                <p className="text-center text-muted-foreground py-12">No hay registros para esta impresora</p>
+              ) : (
+                <div className="relative pl-6 space-y-0">
+                  <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-border" />
+                  {events.map((event) => (
+                    <div key={event.id} className="relative pb-4">
+                      <div className={cn(
+                        "absolute -left-6 top-1 w-5 h-5 rounded-full border-2 border-background flex items-center justify-center",
+                        event.type === 'cambio' && "bg-primary text-primary-foreground",
+                        event.type === 'lectura' && "bg-blue-500 text-white",
+                        event.type === 'pieza' && "bg-orange-500 text-white",
+                      )}>
+                        {getTypeIcon(event.type)}
+                      </div>
+                      <div className="bg-muted/50 rounded-lg p-3 ml-2">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {getTypeBadge(event.type)}
+                            <span className="font-medium text-sm">{event.title}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(event.date).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            {' '}
+                            {new Date(event.date).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-sm">{event.detail}</p>
+                        {event.secondary && <p className="text-xs text-muted-foreground mt-1 italic">{event.secondary}</p>}
+                        {event.user && (
+                          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                            <User className="w-3 h-3" />{event.user}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="reparaciones">
+            <div className="overflow-y-auto max-h-[60vh] pr-1 mt-2">
+              {printerId && <RepairTimeline printerId={printerId} />}
+            </div>
+          </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );

@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 interface HistorialItem { id: string; created_at: string; campo_modificado: string; valor_anterior: string | null; valor_nuevo: string | null; motivo: string | null; impresora_id: string; usuario_id: string; impresoras?: { nombre: string; serie: string }; }
 interface LecturaHistorial { id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; notas: string | null; impresora_id: string; registrado_por: string; impresoras?: { nombre: string; serie: string }; }
 interface PiezaHistorial { id: string; fecha_cambio: string; nombre_pieza: string; tipo_pieza: string; vida_util_estimada: number; vida_util_real: number | null; porcentaje_vida_consumida: number | null; contador_cambio: number; motivo: string | null; observaciones: string | null; impresora_id: string; tecnico_id: string | null; impresoras?: { nombre: string; serie: string }; }
+interface ReparacionHistorial { id: string; fecha_salida: string; fecha_retorno: string | null; motivo: string; tecnico_responsable: string | null; estado: 'en_reparacion' | 'resuelta' | 'irreparable'; costo_reparacion: number | null; moneda: string; resultado: string | null; notas: string | null; printer_id: string; registrado_por: string; impresoras?: { nombre: string; serie: string }; }
 interface Profile { id: string; full_name: string | null; email: string; }
 interface PrinterFull { id: string; nombre: string; serie: string; modelo: string; sector_id: string | null; filial_id: string | null; }
 interface Sector { id: string; nombre: string; }
@@ -31,6 +32,7 @@ export default function Historial() {
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
   const [piezas, setPiezas] = useState<PiezaHistorial[]>([]);
   const [lecturas, setLecturas] = useState<LecturaHistorial[]>([]);
+  const [reparaciones, setReparaciones] = useState<ReparacionHistorial[]>([]);
   const [impresoras, setImpresoras] = useState<PrinterFull[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
@@ -44,16 +46,17 @@ export default function Historial() {
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas'>('lecturas');
+  const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas' | 'reparaciones'>('lecturas');
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    const [histResp, lecResp, piezasResp, impResp, profResp, secResp, filResp] = await Promise.all([
+    const [histResp, lecResp, piezasResp, repResp, impResp, profResp, secResp, filResp] = await Promise.all([
       supabase.from('historial_cambios').select('*, impresoras(nombre, serie)').order('created_at', { ascending: false }).limit(500),
       supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie)').order('fecha_lectura', { ascending: false }).limit(500),
       supabase.from('historial_piezas').select('*, impresoras(nombre, serie)').order('fecha_cambio', { ascending: false }).limit(500),
+      supabase.from('repair_history').select('*, impresoras:printer_id(nombre, serie)').order('fecha_salida', { ascending: false }).limit(500),
       supabase.from('impresoras').select('id, nombre, serie, modelo, sector_id, filial_id').order('nombre'),
       supabase.from('profiles').select('id, full_name, email'),
       supabase.from('sectores').select('id, nombre').eq('activo', true),
@@ -62,6 +65,7 @@ export default function Historial() {
     if (histResp.data) setHistorial(histResp.data as HistorialItem[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaHistorial[]);
     if (piezasResp.data) setPiezas(piezasResp.data as PiezaHistorial[]);
+    if (repResp.data) setReparaciones(repResp.data as any);
     if (impResp.data) setImpresoras(impResp.data as PrinterFull[]);
     if (profResp.data) setProfiles(profResp.data as Profile[]);
     if (secResp.data) setSectores(secResp.data);
@@ -154,6 +158,7 @@ export default function Historial() {
   const filteredLecturas = sortByDate(lecturas.filter(l => matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && matchesSearch(l.impresoras?.nombre)), 'fecha_lectura');
   const filteredHistorial = sortByDate(historial.filter(h => matchesPrinterFilter(h.impresora_id) && matchesDateFilter(h.created_at) && matchesSearch(h.impresoras?.nombre)), 'created_at');
   const filteredPiezas = sortByDate(piezas.filter(p => matchesPrinterFilter(p.impresora_id) && matchesDateFilter(p.fecha_cambio) && matchesSearch(p.impresoras?.nombre)), 'fecha_cambio');
+  const filteredReparaciones = sortByDate(reparaciones.filter(r => matchesPrinterFilter(r.printer_id) && matchesDateFilter(r.fecha_salida) && matchesSearch(r.impresoras?.nombre)), 'fecha_salida');
 
   const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setSortOrder('desc'); };
   const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || searchTerm;
@@ -177,6 +182,8 @@ export default function Historial() {
       });
     } else if (activeTab === 'piezas') {
       data = filteredPiezas.map(p => { const pi = getPrinterInfo(p.impresora_id); return { Fecha: new Date(p.fecha_cambio).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null), Impresora: p.impresoras?.nombre || '', Pieza: p.nombre_pieza, Contador: p.contador_cambio, Tecnico: getProfileName(p.tecnico_id), Observacion: p.observaciones || p.motivo || '' }; });
+    } else if (activeTab === 'reparaciones') {
+      data = filteredReparaciones.map(r => { const pi = getPrinterInfo(r.printer_id); const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000); return { Salida: new Date(r.fecha_salida).toLocaleString('es'), Retorno: r.fecha_retorno ? new Date(r.fecha_retorno).toLocaleString('es') : 'En curso', DiasFuera: dias, Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null), Impresora: r.impresoras?.nombre || '', Motivo: r.motivo, Tecnico: r.tecnico_responsable || '-', Estado: r.estado, Costo: r.costo_reparacion ?? '-', Resultado: r.resultado || '-', RegistradoPor: getProfileName(r.registrado_por) }; });
     } else {
       data = filteredHistorial.map(h => { const pi = getPrinterInfo(h.impresora_id); return { Fecha: new Date(h.created_at).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Impresora: h.impresoras?.nombre || '', Campo: h.campo_modificado, Anterior: h.valor_anterior || '', Nuevo: h.valor_nuevo || '', RealizadoPor: getProfileName(h.usuario_id), Motivo: h.motivo || '' }; });
     }
@@ -193,7 +200,7 @@ export default function Historial() {
 
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
-    const tabLabels: Record<string, string> = { lecturas: 'Informe General de Uso', cambios: 'Cambios de Configuración', piezas: 'Informe de Cambio de Piezas' };
+    const tabLabels: Record<string, string> = { lecturas: 'Informe General de Uso', cambios: 'Cambios de Configuración', piezas: 'Informe de Cambio de Piezas', reparaciones: 'Historial de Reparaciones' };
     const startY = addPDFHeader(doc, 'Historial y Auditoría', tabLabels[activeTab]);
     let head: string[][] = [];
     let body: string[][] = [];
@@ -224,6 +231,13 @@ export default function Historial() {
     } else if (activeTab === 'piezas') {
       head = [['Fecha', 'Filial', 'Sector', 'Impresora', 'Pieza', 'Contador', 'Técnico', 'Observación']];
       body = filteredPiezas.map(p => { const pi = getPrinterInfo(p.impresora_id); return [new Date(p.fecha_cambio).toLocaleString('es'), getFilialName(pi?.filial_id || null), getSectorName(pi?.sector_id || null), p.impresoras?.nombre || '-', p.nombre_pieza, p.contador_cambio.toLocaleString(), getProfileName(p.tecnico_id), p.observaciones || p.motivo || '-']; });
+    } else if (activeTab === 'reparaciones') {
+      head = [['Salida', 'Retorno', 'Días', 'Filial', 'Impresora', 'Motivo', 'Técnico', 'Estado', 'Costo', 'Resultado']];
+      body = filteredReparaciones.map(r => {
+        const pi = getPrinterInfo(r.printer_id);
+        const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000);
+        return [new Date(r.fecha_salida).toLocaleString('es'), r.fecha_retorno ? new Date(r.fecha_retorno).toLocaleString('es') : 'En curso', String(dias), getFilialName(pi?.filial_id || null), r.impresoras?.nombre || '-', r.motivo, r.tecnico_responsable || '-', r.estado, r.costo_reparacion != null ? `${Number(r.costo_reparacion).toLocaleString('es')} ${r.moneda}` : '-', r.resultado || '-'];
+      });
     } else {
       head = [['Fecha', 'Impresora', 'Campo', 'Anterior', 'Nuevo', 'Realizado Por', 'Motivo']];
       body = filteredHistorial.map(h => [new Date(h.created_at).toLocaleString('es'), h.impresoras?.nombre || '-', h.campo_modificado, h.valor_anterior || '-', h.valor_nuevo || '-', getProfileName(h.usuario_id), h.motivo || '-']);
@@ -252,10 +266,11 @@ export default function Historial() {
           </div>
         </div>
 
-        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit flex-wrap">
           <Button variant={activeTab === 'lecturas' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('lecturas')} className="gap-2"><FileText className="w-4 h-4" />Lecturas de Contadores</Button>
           <Button variant={activeTab === 'cambios' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('cambios')} className="gap-2"><HistoryIcon className="w-4 h-4" />Cambios en Impresoras</Button>
           <Button variant={activeTab === 'piezas' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('piezas')} className="gap-2"><Wrench className="w-4 h-4" />Reemplazo de Piezas</Button>
+          <Button variant={activeTab === 'reparaciones' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('reparaciones')} className="gap-2"><Wrench className="w-4 h-4" />Reparaciones</Button>
         </div>
 
         {/* Cascade Filters */}
@@ -308,8 +323,8 @@ export default function Historial() {
         {/* Content */}
         <Card>
           <CardHeader>
-            <CardTitle>{activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : 'Historial de Reemplazo de Piezas'}</CardTitle>
-            <CardDescription>{activeTab === 'lecturas' ? `${filteredLecturas.length} lecturas` : activeTab === 'cambios' ? `${filteredHistorial.length} cambios` : `${filteredPiezas.length} reemplazos`}</CardDescription>
+            <CardTitle>{activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : activeTab === 'piezas' ? 'Historial de Reemplazo de Piezas' : 'Historial de Reparaciones'}</CardTitle>
+            <CardDescription>{activeTab === 'lecturas' ? `${filteredLecturas.length} lecturas` : activeTab === 'cambios' ? `${filteredHistorial.length} cambios` : activeTab === 'piezas' ? `${filteredPiezas.length} reemplazos` : `${filteredReparaciones.length} reparaciones`}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -392,7 +407,7 @@ export default function Historial() {
                   </Table>
                 </div>
               )
-            ) : (
+            ) : activeTab === 'piezas' ? (
               filteredPiezas.length === 0 ? <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reemplazos</p></div> : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -410,6 +425,33 @@ export default function Historial() {
                           <TableCell className="max-w-[200px] truncate text-muted-foreground">{pieza.observaciones || pieza.motivo || '-'}</TableCell>
                         </TableRow>
                       ); })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+            ) : (
+              filteredReparaciones.length === 0 ? <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reparaciones registradas</p></div> : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Salida</TableHead><TableHead>Retorno</TableHead><TableHead className="text-right">Días</TableHead><TableHead>Impresora</TableHead><TableHead>Motivo</TableHead><TableHead>Técnico</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Costo</TableHead><TableHead>Resultado</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {filteredReparaciones.map(r => {
+                        const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000);
+                        const colorClass = dias > 15 ? 'bg-destructive/15 text-destructive border-destructive/40' : dias > 7 ? 'bg-orange-500/15 text-orange-500 border-orange-500/40' : 'bg-warning/15 text-warning border-warning/40';
+                        return (
+                          <TableRow key={r.id} className="hover:bg-muted/50">
+                            <TableCell className="whitespace-nowrap text-sm">{new Date(r.fecha_salida).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                            <TableCell className="whitespace-nowrap text-sm">{r.fecha_retorno ? new Date(r.fecha_retorno).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : <Badge variant="outline" className="bg-warning/10 text-warning border-warning/40 animate-pulse">En curso</Badge>}</TableCell>
+                            <TableCell className="text-right"><Badge variant="outline" className={cn(colorClass)}>{dias}d</Badge></TableCell>
+                            <TableCell><div className="flex items-center gap-2"><Printer className="w-4 h-4 text-primary" /><span className="font-medium">{r.impresoras?.nombre}</span></div></TableCell>
+                            <TableCell className="max-w-[200px] truncate">{r.motivo}</TableCell>
+                            <TableCell className="text-sm">{r.tecnico_responsable || '-'}</TableCell>
+                            <TableCell><Badge variant={r.estado === 'irreparable' ? 'destructive' : r.estado === 'resuelta' ? 'secondary' : 'outline'}>{r.estado}</Badge></TableCell>
+                            <TableCell className="text-right font-mono">{r.costo_reparacion != null ? `${Number(r.costo_reparacion).toLocaleString('es')} ${r.moneda}` : '-'}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-muted-foreground">{r.resultado || '-'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>

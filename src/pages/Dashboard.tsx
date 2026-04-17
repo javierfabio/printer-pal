@@ -31,6 +31,12 @@ interface RecentReading {
   impresoras: { nombre: string; serie: string; modelo: string; sector_id: string | null; };
 }
 
+interface RepairOpen {
+  id: string; printer_id: string; fecha_salida: string; motivo: string;
+  tecnico_responsable: string | null;
+  impresoras?: { nombre: string; serie: string; modelo: string };
+}
+
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
 interface PrinterFull { id: string; sector_id: string | null; filial_id: string | null; }
@@ -45,6 +51,7 @@ export default function Dashboard() {
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
+  const [openRepairs, setOpenRepairs] = useState<RepairOpen[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printers, setPrinters] = useState<PrinterFull[]>([]);
@@ -53,7 +60,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [printersResp, readingsResp, secResp, filResp] = await Promise.all([
+      const [printersResp, readingsResp, secResp, filResp, repairsResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie, modelo, sector_id)')
@@ -61,7 +68,13 @@ export default function Dashboard() {
           .limit(15),
         supabase.from('sectores').select('id, nombre').eq('activo', true),
         supabase.from('filiales').select('id, nombre').eq('activo', true),
+        supabase.from('repair_history')
+          .select('id, printer_id, fecha_salida, motivo, tecnico_responsable, impresoras:printer_id(nombre, serie, modelo)')
+          .eq('estado', 'en_reparacion')
+          .order('fecha_salida', { ascending: false }),
       ]);
+
+      if (repairsResp.data) setOpenRepairs(repairsResp.data as any);
 
       if (secResp.data) setSectores(secResp.data);
       if (filResp.data) setFiliales(filResp.data);
@@ -169,17 +182,42 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {stats.enReparacion > 0 && (
+        {(openRepairs.length > 0 || stats.enReparacion > 0) && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-4">
-                <div className="p-3 rounded-xl bg-warning/20"><Wrench className="w-6 h-6 text-warning" /></div>
-                <div className="flex-1">
-                  <p className="font-semibold text-warning">Impresoras en Reparación</p>
-                  <p className="text-sm text-muted-foreground">{stats.enReparacion} impresora(s) en reparación.</p>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-warning">
+                <Wrench className="w-5 h-5" />
+                Impresoras en Reparación ({openRepairs.length || stats.enReparacion})
+              </CardTitle>
+              <CardDescription>Días fuera de servicio desde la fecha de salida</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {openRepairs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">{stats.enReparacion} impresora(s) marcadas en reparación sin registro detallado.</p>
+              ) : (
+                <div className="space-y-2">
+                  {openRepairs.slice(0, 5).map(r => {
+                    const days = Math.max(0, Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / (1000 * 60 * 60 * 24)));
+                    const colorClass = days > 15 ? 'bg-destructive/15 text-destructive border-destructive/40' : days > 7 ? 'bg-orange-500/15 text-orange-500 border-orange-500/40' : 'bg-warning/15 text-warning border-warning/40';
+                    return (
+                      <div key={r.id} className="flex items-center justify-between p-3 rounded-lg bg-background/50 border">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{r.impresoras?.nombre} <span className="text-muted-foreground font-normal">— {r.impresoras?.modelo}</span></p>
+                          <p className="text-xs text-muted-foreground truncate">{r.motivo}{r.tecnico_responsable && ` · ${r.tecnico_responsable}`}</p>
+                        </div>
+                        <Badge variant="outline" className={cn('ml-2 flex-shrink-0', colorClass)}>
+                          {days} día{days !== 1 ? 's' : ''} fuera
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                  {openRepairs.length > 5 && (
+                    <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => navigate('/dashboard/impresoras')}>
+                      Ver las {openRepairs.length - 5} restantes<ArrowUpRight className="w-4 h-4 ml-1" />
+                    </Button>
+                  )}
                 </div>
-                <Button variant="outline" size="sm" onClick={() => navigate('/dashboard/impresoras')}>Ver detalles<ArrowUpRight className="w-4 h-4 ml-1" /></Button>
-              </div>
+              )}
             </CardContent>
           </Card>
         )}

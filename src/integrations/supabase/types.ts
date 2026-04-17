@@ -523,6 +523,65 @@ export type Database = {
         }
         Relationships: []
       }
+      repair_history: {
+        Row: {
+          costo_reparacion: number | null
+          created_at: string
+          estado: Database["public"]["Enums"]["repair_status"]
+          fecha_retorno: string | null
+          fecha_salida: string
+          id: string
+          moneda: string
+          motivo: string
+          notas: string | null
+          printer_id: string
+          registrado_por: string
+          resultado: string | null
+          tecnico_responsable: string | null
+          updated_at: string
+        }
+        Insert: {
+          costo_reparacion?: number | null
+          created_at?: string
+          estado?: Database["public"]["Enums"]["repair_status"]
+          fecha_retorno?: string | null
+          fecha_salida?: string
+          id?: string
+          moneda?: string
+          motivo: string
+          notas?: string | null
+          printer_id: string
+          registrado_por: string
+          resultado?: string | null
+          tecnico_responsable?: string | null
+          updated_at?: string
+        }
+        Update: {
+          costo_reparacion?: number | null
+          created_at?: string
+          estado?: Database["public"]["Enums"]["repair_status"]
+          fecha_retorno?: string | null
+          fecha_salida?: string
+          id?: string
+          moneda?: string
+          motivo?: string
+          notas?: string | null
+          printer_id?: string
+          registrado_por?: string
+          resultado?: string | null
+          tecnico_responsable?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "repair_history_printer_id_fkey"
+            columns: ["printer_id"]
+            isOneToOne: false
+            referencedRelation: "impresoras"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sectores: {
         Row: {
           activo: boolean | null
@@ -590,6 +649,7 @@ export type Database = {
       consumo_tipo: "tinta" | "toner"
       impresion_tipo: "monocromatico" | "color"
       impresora_estado: "activa" | "inactiva" | "en_reparacion" | "baja"
+      repair_status: "en_reparacion" | "resuelta" | "irreparable"
       tipo_pieza:
         | "toner_negro"
         | "toner_color"
@@ -730,6 +790,7 @@ export const Constants = {
       consumo_tipo: ["tinta", "toner"],
       impresion_tipo: ["monocromatico", "color"],
       impresora_estado: ["activa", "inactiva", "en_reparacion", "baja"],
+      repair_status: ["en_reparacion", "resuelta", "irreparable"],
       tipo_pieza: [
         "toner_negro",
         "toner_color",

@@ -14,6 +14,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
+import { RepairOutDialog } from '@/components/impresoras/RepairOutDialog';
+import { RepairReturnDialog } from '@/components/impresoras/RepairReturnDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -76,6 +78,9 @@ export default function Impresoras() {
   const [historialOpen, setHistorialOpen] = useState(false);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
   const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
+  const [repairOutOpen, setRepairOutOpen] = useState(false);
+  const [repairReturnOpen, setRepairReturnOpen] = useState(false);
+  const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
   
   const [formData, setFormData] = useState({
     serie: '',
@@ -162,10 +167,14 @@ export default function Impresoras() {
     };
 
     if (editingPrinter) {
+      const wasRepair = editingPrinter.estado === 'en_reparacion';
+      const willBeRepair = dataToSave.estado === 'en_reparacion';
+      const transitionToRepair = !wasRepair && willBeRepair;
+      const transitionFromRepair = wasRepair && !willBeRepair;
+
       const fieldsToTrack: { campo: string; anterior: () => string; nuevo: () => string; changed: boolean }[] = [
         { campo: 'sector', anterior: () => sectores.find(s => s.id === editingPrinter.sector_id)?.nombre || 'Sin sector', nuevo: () => sectores.find(s => s.id === dataToSave.sector_id)?.nombre || 'Sin sector', changed: editingPrinter.sector_id !== dataToSave.sector_id },
         { campo: 'filial', anterior: () => filiales.find(f => f.id === editingPrinter.filial_id)?.nombre || 'Sin filial', nuevo: () => filiales.find(f => f.id === dataToSave.filial_id)?.nombre || 'Sin filial', changed: editingPrinter.filial_id !== dataToSave.filial_id },
-        { campo: 'estado', anterior: () => editingPrinter.estado, nuevo: () => dataToSave.estado, changed: editingPrinter.estado !== dataToSave.estado },
         { campo: 'nombre', anterior: () => editingPrinter.nombre, nuevo: () => dataToSave.nombre, changed: editingPrinter.nombre !== dataToSave.nombre },
         { campo: 'modelo', anterior: () => editingPrinter.modelo, nuevo: () => dataToSave.modelo, changed: editingPrinter.modelo !== dataToSave.modelo },
         { campo: 'tipo_consumo', anterior: () => editingPrinter.tipo_consumo, nuevo: () => dataToSave.tipo_consumo, changed: editingPrinter.tipo_consumo !== dataToSave.tipo_consumo },
@@ -174,20 +183,40 @@ export default function Impresoras() {
         { campo: 'lectura_ip', anterior: () => editingPrinter.lectura_ip ? 'Sí' : 'No', nuevo: () => dataToSave.lectura_ip ? 'Sí' : 'No', changed: editingPrinter.lectura_ip !== dataToSave.lectura_ip },
         { campo: 'ip_address', anterior: () => editingPrinter.ip_address || '', nuevo: () => dataToSave.ip_address || '', changed: (editingPrinter.ip_address || '') !== (dataToSave.ip_address || '') },
       ];
+      // Solo loguear el estado en historial_cambios si NO es transición de/hacia reparación
+      // (esas transiciones se loguean en repair_history vía los modales).
+      if (!transitionToRepair && !transitionFromRepair && editingPrinter.estado !== dataToSave.estado) {
+        fieldsToTrack.push({ campo: 'estado', anterior: () => editingPrinter.estado, nuevo: () => dataToSave.estado, changed: true });
+      }
       const changes = fieldsToTrack.filter(f => f.changed).map(f => ({ campo: f.campo, anterior: f.anterior(), nuevo: f.nuevo() }));
 
-      const { error } = await supabase.from('impresoras').update({
+      // Si la transición involucra reparación, NO actualizamos el estado todavía;
+      // el modal lo hará al confirmarse.
+      const updatePayload: any = {
         ...dataToSave,
         contador_negro_actual: editingPrinter.contador_negro_actual,
         contador_color_actual: editingPrinter.contador_color_actual,
-      }).eq('id', editingPrinter.id);
+      };
+      if (transitionToRepair || transitionFromRepair) {
+        updatePayload.estado = editingPrinter.estado;
+      }
+
+      const { error } = await supabase.from('impresoras').update(updatePayload).eq('id', editingPrinter.id);
 
       if (error) { toast({ variant: 'destructive', title: 'Error', description: error.message }); }
       else {
         for (const change of changes) {
           await supabase.from('historial_cambios').insert({ impresora_id: editingPrinter.id, campo_modificado: change.campo, valor_anterior: change.anterior, valor_nuevo: change.nuevo, usuario_id: user?.id });
         }
-        toast({ title: 'Éxito', description: 'Impresora actualizada correctamente' });
+        if (transitionToRepair) {
+          setPendingRepairPrinter({ id: editingPrinter.id, name: editingPrinter.nombre });
+          setRepairOutOpen(true);
+        } else if (transitionFromRepair) {
+          setPendingRepairPrinter({ id: editingPrinter.id, name: editingPrinter.nombre });
+          setRepairReturnOpen(true);
+        } else {
+          toast({ title: 'Éxito', description: 'Impresora actualizada correctamente' });
+        }
       }
     } else {
       const { error } = await supabase.from('impresoras').insert({
@@ -474,6 +503,25 @@ export default function Impresoras() {
         </Dialog>
 
         <PrinterHistoryDialog printerId={selectedPrinterId} printerName={selectedPrinterName} open={historialOpen} onOpenChange={setHistorialOpen} />
+
+        {pendingRepairPrinter && (
+          <>
+            <RepairOutDialog
+              open={repairOutOpen}
+              onOpenChange={setRepairOutOpen}
+              printerId={pendingRepairPrinter.id}
+              printerName={pendingRepairPrinter.name}
+              onSuccess={fetchData}
+            />
+            <RepairReturnDialog
+              open={repairReturnOpen}
+              onOpenChange={setRepairReturnOpen}
+              printerId={pendingRepairPrinter.id}
+              printerName={pendingRepairPrinter.name}
+              onSuccess={fetchData}
+            />
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
