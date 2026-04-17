@@ -158,6 +158,7 @@ export default function Historial() {
   const filteredLecturas = sortByDate(lecturas.filter(l => matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && matchesSearch(l.impresoras?.nombre)), 'fecha_lectura');
   const filteredHistorial = sortByDate(historial.filter(h => matchesPrinterFilter(h.impresora_id) && matchesDateFilter(h.created_at) && matchesSearch(h.impresoras?.nombre)), 'created_at');
   const filteredPiezas = sortByDate(piezas.filter(p => matchesPrinterFilter(p.impresora_id) && matchesDateFilter(p.fecha_cambio) && matchesSearch(p.impresoras?.nombre)), 'fecha_cambio');
+  const filteredReparaciones = sortByDate(reparaciones.filter(r => matchesPrinterFilter(r.printer_id) && matchesDateFilter(r.fecha_salida) && matchesSearch(r.impresoras?.nombre)), 'fecha_salida');
 
   const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setSortOrder('desc'); };
   const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || searchTerm;
@@ -181,6 +182,8 @@ export default function Historial() {
       });
     } else if (activeTab === 'piezas') {
       data = filteredPiezas.map(p => { const pi = getPrinterInfo(p.impresora_id); return { Fecha: new Date(p.fecha_cambio).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null), Impresora: p.impresoras?.nombre || '', Pieza: p.nombre_pieza, Contador: p.contador_cambio, Tecnico: getProfileName(p.tecnico_id), Observacion: p.observaciones || p.motivo || '' }; });
+    } else if (activeTab === 'reparaciones') {
+      data = filteredReparaciones.map(r => { const pi = getPrinterInfo(r.printer_id); const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000); return { Salida: new Date(r.fecha_salida).toLocaleString('es'), Retorno: r.fecha_retorno ? new Date(r.fecha_retorno).toLocaleString('es') : 'En curso', DiasFuera: dias, Filial: getFilialName(pi?.filial_id || null), Sector: getSectorName(pi?.sector_id || null), Impresora: r.impresoras?.nombre || '', Motivo: r.motivo, Tecnico: r.tecnico_responsable || '-', Estado: r.estado, Costo: r.costo_reparacion ?? '-', Resultado: r.resultado || '-', RegistradoPor: getProfileName(r.registrado_por) }; });
     } else {
       data = filteredHistorial.map(h => { const pi = getPrinterInfo(h.impresora_id); return { Fecha: new Date(h.created_at).toLocaleString('es'), Filial: getFilialName(pi?.filial_id || null), Impresora: h.impresoras?.nombre || '', Campo: h.campo_modificado, Anterior: h.valor_anterior || '', Nuevo: h.valor_nuevo || '', RealizadoPor: getProfileName(h.usuario_id), Motivo: h.motivo || '' }; });
     }
@@ -197,7 +200,7 @@ export default function Historial() {
 
   const exportToPDF = () => {
     const doc = new jsPDF('landscape');
-    const tabLabels: Record<string, string> = { lecturas: 'Informe General de Uso', cambios: 'Cambios de Configuración', piezas: 'Informe de Cambio de Piezas' };
+    const tabLabels: Record<string, string> = { lecturas: 'Informe General de Uso', cambios: 'Cambios de Configuración', piezas: 'Informe de Cambio de Piezas', reparaciones: 'Historial de Reparaciones' };
     const startY = addPDFHeader(doc, 'Historial y Auditoría', tabLabels[activeTab]);
     let head: string[][] = [];
     let body: string[][] = [];
@@ -228,6 +231,13 @@ export default function Historial() {
     } else if (activeTab === 'piezas') {
       head = [['Fecha', 'Filial', 'Sector', 'Impresora', 'Pieza', 'Contador', 'Técnico', 'Observación']];
       body = filteredPiezas.map(p => { const pi = getPrinterInfo(p.impresora_id); return [new Date(p.fecha_cambio).toLocaleString('es'), getFilialName(pi?.filial_id || null), getSectorName(pi?.sector_id || null), p.impresoras?.nombre || '-', p.nombre_pieza, p.contador_cambio.toLocaleString(), getProfileName(p.tecnico_id), p.observaciones || p.motivo || '-']; });
+    } else if (activeTab === 'reparaciones') {
+      head = [['Salida', 'Retorno', 'Días', 'Filial', 'Impresora', 'Motivo', 'Técnico', 'Estado', 'Costo', 'Resultado']];
+      body = filteredReparaciones.map(r => {
+        const pi = getPrinterInfo(r.printer_id);
+        const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000);
+        return [new Date(r.fecha_salida).toLocaleString('es'), r.fecha_retorno ? new Date(r.fecha_retorno).toLocaleString('es') : 'En curso', String(dias), getFilialName(pi?.filial_id || null), r.impresoras?.nombre || '-', r.motivo, r.tecnico_responsable || '-', r.estado, r.costo_reparacion != null ? `${Number(r.costo_reparacion).toLocaleString('es')} ${r.moneda}` : '-', r.resultado || '-'];
+      });
     } else {
       head = [['Fecha', 'Impresora', 'Campo', 'Anterior', 'Nuevo', 'Realizado Por', 'Motivo']];
       body = filteredHistorial.map(h => [new Date(h.created_at).toLocaleString('es'), h.impresoras?.nombre || '-', h.campo_modificado, h.valor_anterior || '-', h.valor_nuevo || '-', getProfileName(h.usuario_id), h.motivo || '-']);
