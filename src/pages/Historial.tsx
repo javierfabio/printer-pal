@@ -266,10 +266,11 @@ export default function Historial() {
           </div>
         </div>
 
-        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit">
+        <div className="flex gap-2 p-1 bg-muted rounded-lg w-fit flex-wrap">
           <Button variant={activeTab === 'lecturas' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('lecturas')} className="gap-2"><FileText className="w-4 h-4" />Lecturas de Contadores</Button>
           <Button variant={activeTab === 'cambios' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('cambios')} className="gap-2"><HistoryIcon className="w-4 h-4" />Cambios en Impresoras</Button>
           <Button variant={activeTab === 'piezas' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('piezas')} className="gap-2"><Wrench className="w-4 h-4" />Reemplazo de Piezas</Button>
+          <Button variant={activeTab === 'reparaciones' ? 'default' : 'ghost'} size="sm" onClick={() => setActiveTab('reparaciones')} className="gap-2"><Wrench className="w-4 h-4" />Reparaciones</Button>
         </div>
 
         {/* Cascade Filters */}
