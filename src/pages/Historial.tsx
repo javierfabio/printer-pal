@@ -323,8 +323,8 @@ export default function Historial() {
         {/* Content */}
         <Card>
           <CardHeader>
-            <CardTitle>{activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : 'Historial de Reemplazo de Piezas'}</CardTitle>
-            <CardDescription>{activeTab === 'lecturas' ? `${filteredLecturas.length} lecturas` : activeTab === 'cambios' ? `${filteredHistorial.length} cambios` : `${filteredPiezas.length} reemplazos`}</CardDescription>
+            <CardTitle>{activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : activeTab === 'piezas' ? 'Historial de Reemplazo de Piezas' : 'Historial de Reparaciones'}</CardTitle>
+            <CardDescription>{activeTab === 'lecturas' ? `${filteredLecturas.length} lecturas` : activeTab === 'cambios' ? `${filteredHistorial.length} cambios` : activeTab === 'piezas' ? `${filteredPiezas.length} reemplazos` : `${filteredReparaciones.length} reparaciones`}</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
