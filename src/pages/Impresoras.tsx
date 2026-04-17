@@ -503,6 +503,25 @@ export default function Impresoras() {
         </Dialog>
 
         <PrinterHistoryDialog printerId={selectedPrinterId} printerName={selectedPrinterName} open={historialOpen} onOpenChange={setHistorialOpen} />
+
+        {pendingRepairPrinter && (
+          <>
+            <RepairOutDialog
+              open={repairOutOpen}
+              onOpenChange={setRepairOutOpen}
+              printerId={pendingRepairPrinter.id}
+              printerName={pendingRepairPrinter.name}
+              onSuccess={fetchData}
+            />
+            <RepairReturnDialog
+              open={repairReturnOpen}
+              onOpenChange={setRepairReturnOpen}
+              printerId={pendingRepairPrinter.id}
+              printerName={pendingRepairPrinter.name}
+              onSuccess={fetchData}
+            />
+          </>
+        )}
       </div>
     </DashboardLayout>
   );
