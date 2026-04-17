@@ -14,6 +14,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
+import { RepairOutDialog } from '@/components/impresoras/RepairOutDialog';
+import { RepairReturnDialog } from '@/components/impresoras/RepairReturnDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -76,6 +78,9 @@ export default function Impresoras() {
   const [historialOpen, setHistorialOpen] = useState(false);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
   const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
+  const [repairOutOpen, setRepairOutOpen] = useState(false);
+  const [repairReturnOpen, setRepairReturnOpen] = useState(false);
+  const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
   
   const [formData, setFormData] = useState({
     serie: '',
