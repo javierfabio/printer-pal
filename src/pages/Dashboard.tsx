@@ -31,6 +31,12 @@ interface RecentReading {
   impresoras: { nombre: string; serie: string; modelo: string; sector_id: string | null; };
 }
 
+interface RepairOpen {
+  id: string; printer_id: string; fecha_salida: string; motivo: string;
+  tecnico_responsable: string | null;
+  impresoras?: { nombre: string; serie: string; modelo: string };
+}
+
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
 interface PrinterFull { id: string; sector_id: string | null; filial_id: string | null; }
@@ -45,6 +51,7 @@ export default function Dashboard() {
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
+  const [openRepairs, setOpenRepairs] = useState<RepairOpen[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printers, setPrinters] = useState<PrinterFull[]>([]);
@@ -53,7 +60,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [printersResp, readingsResp, secResp, filResp] = await Promise.all([
+      const [printersResp, readingsResp, secResp, filResp, repairsResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie, modelo, sector_id)')
@@ -61,7 +68,13 @@ export default function Dashboard() {
           .limit(15),
         supabase.from('sectores').select('id, nombre').eq('activo', true),
         supabase.from('filiales').select('id, nombre').eq('activo', true),
+        supabase.from('repair_history')
+          .select('id, printer_id, fecha_salida, motivo, tecnico_responsable, impresoras:printer_id(nombre, serie, modelo)')
+          .eq('estado', 'en_reparacion')
+          .order('fecha_salida', { ascending: false }),
       ]);
+
+      if (repairsResp.data) setOpenRepairs(repairsResp.data as any);
 
       if (secResp.data) setSectores(secResp.data);
       if (filResp.data) setFiliales(filResp.data);
