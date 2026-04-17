@@ -407,7 +407,7 @@ export default function Historial() {
                   </Table>
                 </div>
               )
-            ) : (
+            ) : activeTab === 'piezas' ? (
               filteredPiezas.length === 0 ? <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reemplazos</p></div> : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -425,6 +425,33 @@ export default function Historial() {
                           <TableCell className="max-w-[200px] truncate text-muted-foreground">{pieza.observaciones || pieza.motivo || '-'}</TableCell>
                         </TableRow>
                       ); })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )
+            ) : (
+              filteredReparaciones.length === 0 ? <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reparaciones registradas</p></div> : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Salida</TableHead><TableHead>Retorno</TableHead><TableHead className="text-right">Días</TableHead><TableHead>Impresora</TableHead><TableHead>Motivo</TableHead><TableHead>Técnico</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Costo</TableHead><TableHead>Resultado</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {filteredReparaciones.map(r => {
+                        const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000);
+                        const colorClass = dias > 15 ? 'bg-destructive/15 text-destructive border-destructive/40' : dias > 7 ? 'bg-orange-500/15 text-orange-500 border-orange-500/40' : 'bg-warning/15 text-warning border-warning/40';
+                        return (
+                          <TableRow key={r.id} className="hover:bg-muted/50">
+                            <TableCell className="whitespace-nowrap text-sm">{new Date(r.fecha_salida).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                            <TableCell className="whitespace-nowrap text-sm">{r.fecha_retorno ? new Date(r.fecha_retorno).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : <Badge variant="outline" className="bg-warning/10 text-warning border-warning/40 animate-pulse">En curso</Badge>}</TableCell>
+                            <TableCell className="text-right"><Badge variant="outline" className={cn(colorClass)}>{dias}d</Badge></TableCell>
+                            <TableCell><div className="flex items-center gap-2"><Printer className="w-4 h-4 text-primary" /><span className="font-medium">{r.impresoras?.nombre}</span></div></TableCell>
+                            <TableCell className="max-w-[200px] truncate">{r.motivo}</TableCell>
+                            <TableCell className="text-sm">{r.tecnico_responsable || '-'}</TableCell>
+                            <TableCell><Badge variant={r.estado === 'irreparable' ? 'destructive' : r.estado === 'resuelta' ? 'secondary' : 'outline'}>{r.estado}</Badge></TableCell>
+                            <TableCell className="text-right font-mono">{r.costo_reparacion != null ? `${Number(r.costo_reparacion).toLocaleString('es')} ${r.moneda}` : '-'}</TableCell>
+                            <TableCell className="max-w-[200px] truncate text-muted-foreground">{r.resultado || '-'}</TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </div>
