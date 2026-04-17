@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 interface HistorialItem { id: string; created_at: string; campo_modificado: string; valor_anterior: string | null; valor_nuevo: string | null; motivo: string | null; impresora_id: string; usuario_id: string; impresoras?: { nombre: string; serie: string }; }
 interface LecturaHistorial { id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; notas: string | null; impresora_id: string; registrado_por: string; impresoras?: { nombre: string; serie: string }; }
 interface PiezaHistorial { id: string; fecha_cambio: string; nombre_pieza: string; tipo_pieza: string; vida_util_estimada: number; vida_util_real: number | null; porcentaje_vida_consumida: number | null; contador_cambio: number; motivo: string | null; observaciones: string | null; impresora_id: string; tecnico_id: string | null; impresoras?: { nombre: string; serie: string }; }
+interface ReparacionHistorial { id: string; fecha_salida: string; fecha_retorno: string | null; motivo: string; tecnico_responsable: string | null; estado: 'en_reparacion' | 'resuelta' | 'irreparable'; costo_reparacion: number | null; moneda: string; resultado: string | null; notas: string | null; printer_id: string; registrado_por: string; impresoras?: { nombre: string; serie: string }; }
 interface Profile { id: string; full_name: string | null; email: string; }
 interface PrinterFull { id: string; nombre: string; serie: string; modelo: string; sector_id: string | null; filial_id: string | null; }
 interface Sector { id: string; nombre: string; }
@@ -31,6 +32,7 @@ export default function Historial() {
   const [historial, setHistorial] = useState<HistorialItem[]>([]);
   const [piezas, setPiezas] = useState<PiezaHistorial[]>([]);
   const [lecturas, setLecturas] = useState<LecturaHistorial[]>([]);
+  const [reparaciones, setReparaciones] = useState<ReparacionHistorial[]>([]);
   const [impresoras, setImpresoras] = useState<PrinterFull[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
@@ -44,16 +46,17 @@ export default function Historial() {
   const [filterDateTo, setFilterDateTo] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas'>('lecturas');
+  const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas' | 'reparaciones'>('lecturas');
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
-    const [histResp, lecResp, piezasResp, impResp, profResp, secResp, filResp] = await Promise.all([
+    const [histResp, lecResp, piezasResp, repResp, impResp, profResp, secResp, filResp] = await Promise.all([
       supabase.from('historial_cambios').select('*, impresoras(nombre, serie)').order('created_at', { ascending: false }).limit(500),
       supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie)').order('fecha_lectura', { ascending: false }).limit(500),
       supabase.from('historial_piezas').select('*, impresoras(nombre, serie)').order('fecha_cambio', { ascending: false }).limit(500),
+      supabase.from('repair_history').select('*, impresoras:printer_id(nombre, serie)').order('fecha_salida', { ascending: false }).limit(500),
       supabase.from('impresoras').select('id, nombre, serie, modelo, sector_id, filial_id').order('nombre'),
       supabase.from('profiles').select('id, full_name, email'),
       supabase.from('sectores').select('id, nombre').eq('activo', true),
@@ -62,6 +65,7 @@ export default function Historial() {
     if (histResp.data) setHistorial(histResp.data as HistorialItem[]);
     if (lecResp.data) setLecturas(lecResp.data as LecturaHistorial[]);
     if (piezasResp.data) setPiezas(piezasResp.data as PiezaHistorial[]);
+    if (repResp.data) setReparaciones(repResp.data as any);
     if (impResp.data) setImpresoras(impResp.data as PrinterFull[]);
     if (profResp.data) setProfiles(profResp.data as Profile[]);
     if (secResp.data) setSectores(secResp.data);
