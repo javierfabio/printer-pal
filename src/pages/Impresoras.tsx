@@ -73,6 +73,8 @@ export default function Impresoras() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [filterSinLectura, setFilterSinLectura] = useState(false);
+  const [printersSinLectura, setPrintersSinLectura] = useState<Set<string>>(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPrinter, setEditingPrinter] = useState<Impresora | null>(null);
   const [historialOpen, setHistorialOpen] = useState(false);
@@ -107,14 +109,22 @@ export default function Impresoras() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [impResp, secResp, filResp] = await Promise.all([
+    const [impResp, secResp, filResp, lectResp] = await Promise.all([
       supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)').order('created_at', { ascending: false }),
       supabase.from('sectores').select('*').eq('activo', true),
       supabase.from('filiales').select('*').eq('activo', true),
+      supabase.from('lecturas_contadores').select('impresora_id'),
     ]);
     if (impResp.data) setImpresoras(impResp.data as any[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
+    if (lectResp.data) {
+      const idsConLectura = new Set(impResp.data?.map(i => i.id) || []);
+      const setIds = new Set(lectResp.data.map((r: any) => r.impresora_id));
+      const sinLect = new Set<string>();
+      idsConLectura.forEach(id => { if (!setIds.has(id)) sinLect.add(id); });
+      setPrintersSinLectura(sinLect);
+    }
     setLoading(false);
   };
 
@@ -252,11 +262,14 @@ export default function Impresoras() {
 
   const openHistorial = (printer: Impresora) => { setSelectedPrinterId(printer.id); setSelectedPrinterName(printer.nombre); setHistorialOpen(true); };
 
-  const filteredImpresoras = impresoras.filter(imp =>
-    imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    imp.serie.toLowerCase().includes(search.toLowerCase()) ||
-    imp.modelo.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredImpresoras = impresoras.filter(imp => {
+    const matchesSearch =
+      imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
+      imp.serie.toLowerCase().includes(search.toLowerCase()) ||
+      imp.modelo.toLowerCase().includes(search.toLowerCase());
+    const matchesSinLectura = !filterSinLectura || printersSinLectura.has(imp.id);
+    return matchesSearch && matchesSinLectura;
+  });
 
   const getStatusBadge = (estado: EstadoImpresora) => {
     const statusMap: Record<EstadoImpresora, { label: string; className: string }> = {
@@ -412,9 +425,19 @@ export default function Impresoras() {
 
         <Card>
           <CardContent className="pt-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Buscar por nombre, serie o modelo..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar por nombre, serie o modelo..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+              </div>
+              <Button
+                variant={filterSinLectura ? 'default' : 'outline'}
+                onClick={() => setFilterSinLectura(v => !v)}
+                className={cn("gap-2 flex-shrink-0", filterSinLectura && "bg-orange-500 hover:bg-orange-500/90 text-white")}
+              >
+                <FileWarning className="w-4 h-4" />
+                Sin lecturas ({printersSinLectura.size})
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -450,7 +473,16 @@ export default function Impresoras() {
                     {filteredImpresoras.map((imp) => (
                       <TableRow key={imp.id}>
                         <TableCell className="font-mono text-sm">{imp.serie}</TableCell>
-                        <TableCell className="font-medium">{imp.nombre}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <span>{imp.nombre}</span>
+                            {printersSinLectura.has(imp.id) && (
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-orange-500/15 text-orange-500 border border-orange-500/30 flex items-center gap-1">
+                                <FileWarning className="w-3 h-3" />Sin registro
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{imp.modelo}</TableCell>
                         <TableCell className="capitalize">{imp.tipo_impresion}</TableCell>
                         <TableCell className="capitalize">{imp.tipo_consumo}</TableCell>
