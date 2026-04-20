@@ -54,7 +54,7 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
   const fetchAllHistory = async (id: string) => {
     setLoading(true);
 
-    const [cambiosResp, lecturasResp, piezasResp] = await Promise.all([
+    const [cambiosResp, lecturasResp, piezasResp, sectoresResp, filialesResp] = await Promise.all([
       supabase
         .from('historial_cambios')
         .select('*, profiles:usuario_id(email, full_name)')
@@ -73,11 +73,36 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
         .eq('impresora_id', id)
         .order('fecha_cambio', { ascending: false })
         .limit(100),
+      supabase.from('sectores').select('id, nombre'),
+      supabase.from('filiales').select('id, nombre'),
     ]);
 
+    const sMap: Record<string, string> = {};
+    (sectoresResp.data || []).forEach((s: any) => { sMap[s.id] = s.nombre; });
+    setSectorMap(sMap);
+    const fMap: Record<string, string> = {};
+    (filialesResp.data || []).forEach((f: any) => { fMap[f.id] = f.nombre; });
+    setFilialMap(fMap);
+
     const timeline: TimelineEvent[] = [];
+    const locations: LocationEvent[] = [];
 
     (cambiosResp.data || []).forEach((h: any) => {
+      const campo = String(h.campo_modificado).toLowerCase();
+      const isLocation = campo === 'sector' || campo === 'sector_id' || campo === 'filial' || campo === 'filial_id';
+      if (isLocation) {
+        const isSector = campo.startsWith('sector');
+        const lookup = isSector ? sMap : fMap;
+        const from = h.valor_anterior ? (lookup[h.valor_anterior] || h.valor_anterior) : '— sin asignar —';
+        const to = h.valor_nuevo ? (lookup[h.valor_nuevo] || h.valor_nuevo) : '— sin asignar —';
+        locations.push({
+          id: h.id,
+          date: h.created_at,
+          campo: campo as LocationEvent['campo'],
+          from, to,
+          user: h.profiles?.full_name || h.profiles?.email || 'Desconocido',
+        });
+      }
       timeline.push({
         id: h.id,
         date: h.created_at,
@@ -116,8 +141,10 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
     });
 
     timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    locations.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     setEvents(timeline);
+    setLocationEvents(locations);
     setLoading(false);
   };
 
