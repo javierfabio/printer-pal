@@ -18,7 +18,9 @@ import {
   TrendingUp,
   Plus,
   Trash2,
-  Wrench
+  Wrench,
+  AlertTriangle,
+  Wand2,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -188,6 +190,51 @@ export default function Costos() {
 
   // Unique models from printers
   const uniqueModelos = [...new Set(impresoras.map(i => i.modelo))].sort();
+
+  // Modelos que tienen impresoras activas pero no tienen precio configurado
+  const modelosSinPrecio = uniqueModelos
+    .filter(m => !preciosModelo.find(p => p.modelo === m))
+    .map(modelo => {
+      const imps = impresoras.filter(i => i.modelo === modelo);
+      const tipoImpresion = imps[0]?.tipo_impresion || 'monocromatico';
+      return { modelo, count: imps.length, tipoImpresion };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardPrices, setWizardPrices] = useState<Record<string, { bn: string; color: string }>>({});
+
+  const openWizard = () => {
+    const initial: Record<string, { bn: string; color: string }> = {};
+    modelosSinPrecio.forEach(m => { initial[m.modelo] = { bn: '', color: '' }; });
+    setWizardPrices(initial);
+    setWizardOpen(true);
+  };
+
+  const saveWizardPrices = async () => {
+    setSaving(true);
+    const rows = Object.entries(wizardPrices)
+      .filter(([_, v]) => v.bn || v.color)
+      .map(([modelo, v]) => ({
+        modelo,
+        precio_bn: parseFloat(v.bn) || 0,
+        precio_color: v.color ? parseFloat(v.color) : null,
+      }));
+    if (rows.length === 0) {
+      toast({ variant: 'destructive', title: 'Nada para guardar', description: 'Completá al menos un precio' });
+      setSaving(false);
+      return;
+    }
+    const { error } = await supabase.from('precios_modelo').insert(rows);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Precios guardados', description: `${rows.length} modelo(s) actualizado(s)` });
+      setWizardOpen(false);
+      await fetchData();
+    }
+    setSaving(false);
+  };
 
   const exportPDF = () => {
     const doc = new jsPDF('landscape');
