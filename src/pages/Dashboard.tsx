@@ -64,7 +64,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [printersResp, readingsResp, secResp, filResp, repairsResp] = await Promise.all([
+      const [printersResp, readingsResp, secResp, filResp, repairsResp, allReadingsResp, preciosResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie, modelo, sector_id)')
@@ -76,6 +76,8 @@ export default function Dashboard() {
           .select('id, printer_id, fecha_salida, motivo, tecnico_responsable, impresoras:printer_id(nombre, serie, modelo)')
           .eq('estado', 'en_reparacion')
           .order('fecha_salida', { ascending: false }),
+        supabase.from('lecturas_contadores').select('impresora_id'),
+        supabase.from('precios_modelo').select('modelo'),
       ]);
 
       if (repairsResp.data) setOpenRepairs(repairsResp.data as any);
@@ -86,6 +88,20 @@ export default function Dashboard() {
       if (printersResp.data) {
         const p = printersResp.data;
         setPrinters(p.map(x => ({ id: x.id, sector_id: x.sector_id, filial_id: x.filial_id })));
+        // Impresoras sin lecturas
+        const idsConLectura = new Set((allReadingsResp.data || []).map((r: any) => r.impresora_id));
+        const sinLectura = p
+          .filter(x => !idsConLectura.has(x.id) && x.estado !== 'baja')
+          .map(x => ({ id: x.id, nombre: x.nombre, modelo: x.modelo, serie: x.serie, filial_id: x.filial_id, sector_id: x.sector_id }));
+        setNoReadingPrinters(sinLectura);
+        // Modelos sin precio
+        const preciosSet = new Set((preciosResp.data || []).map((x: any) => x.modelo));
+        const modelosCount: Record<string, number> = {};
+        p.filter(x => x.estado === 'activa').forEach(x => {
+          if (!preciosSet.has(x.modelo)) modelosCount[x.modelo] = (modelosCount[x.modelo] || 0) + 1;
+        });
+        setModelosSinPrecio(Object.entries(modelosCount).map(([modelo, count]) => ({ modelo, count })).sort((a, b) => b.count - a.count));
+
         const totalNegro = p.reduce((acc, x) => acc + (x.contador_negro_actual || 0) - (x.contador_negro_inicial || 0), 0);
         const totalColor = p.reduce((acc, x) => acc + (x.contador_color_actual || 0) - (x.contador_color_inicial || 0), 0);
         setStats({
