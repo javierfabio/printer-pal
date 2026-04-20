@@ -202,6 +202,84 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {/* Alerta: modelos sin precio configurado */}
+        {modelosSinPrecio.length > 0 && (
+          <Card className="border-warning/50 bg-warning/5 animate-fade-in cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => navigate('/dashboard/costos')}>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-warning/15 flex-shrink-0"><DollarSign className="w-5 h-5 text-warning" /></div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">⚠️ {modelosSinPrecio.length} modelo{modelosSinPrecio.length !== 1 ? 's' : ''} sin precio configurado</p>
+                    <p className="text-xs text-muted-foreground truncate">El costo total puede estar subestimado · Click para completar precios</p>
+                  </div>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-warning flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Alerta: impresoras sin lecturas */}
+        {noReadingPrinters.length > 0 && (
+          <Card className="border-orange-500/50 bg-orange-500/5 animate-fade-in">
+            <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowNoReadingPanel(v => !v)}>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-orange-500">
+                  <FileWarning className="w-5 h-5" />
+                  {noReadingPrinters.length} impresora{noReadingPrinters.length !== 1 ? 's' : ''} sin lecturas registradas
+                </CardTitle>
+                <Button variant="ghost" size="sm">{showNoReadingPanel ? 'Ocultar' : 'Ver listado'}</Button>
+              </div>
+              <CardDescription>Equipos activos que nunca tuvieron una lectura de contadores</CardDescription>
+            </CardHeader>
+            {showNoReadingPanel && (
+              <CardContent>
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {filiales.map(f => {
+                    const items = noReadingPrinters.filter(p => p.filial_id === f.id);
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={f.id} className="mb-3">
+                        <p className="text-xs font-semibold text-orange-500 mb-1">{f.nombre} ({items.length})</p>
+                        <div className="space-y-1 ml-2">
+                          {items.map(p => (
+                            <div key={p.id} className="flex items-center justify-between p-2 rounded bg-background/50 border text-sm">
+                              <div className="min-w-0 flex-1">
+                                <span className="font-medium">{p.nombre}</span>
+                                <span className="text-muted-foreground"> — {p.modelo}</span>
+                                <span className="text-xs text-muted-foreground block truncate">Serie: {p.serie} · {sectores.find(s => s.id === p.sector_id)?.nombre || 'Sin sector'}</span>
+                              </div>
+                              <Button size="sm" variant="outline" className="ml-2 flex-shrink-0" onClick={() => navigate(`/dashboard/registro-uso?impresora=${p.id}`)}>Registrar</Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(() => {
+                    const sinFilial = noReadingPrinters.filter(p => !p.filial_id);
+                    if (sinFilial.length === 0) return null;
+                    return (
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-muted-foreground mb-1">Sin filial asignada ({sinFilial.length})</p>
+                        <div className="space-y-1 ml-2">
+                          {sinFilial.map(p => (
+                            <div key={p.id} className="flex items-center justify-between p-2 rounded bg-background/50 border text-sm">
+                              <span className="font-medium">{p.nombre} <span className="text-muted-foreground">— {p.modelo}</span></span>
+                              <Button size="sm" variant="outline" onClick={() => navigate(`/dashboard/registro-uso?impresora=${p.id}`)}>Registrar</Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        )}
+
         {(openRepairs.length > 0 || stats.enReparacion > 0) && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
             <CardHeader className="pb-3">
