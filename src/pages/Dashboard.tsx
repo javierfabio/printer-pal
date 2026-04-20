@@ -40,6 +40,7 @@ interface RepairOpen {
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
 interface PrinterFull { id: string; sector_id: string | null; filial_id: string | null; }
+interface NoReadingPrinter { id: string; nombre: string; modelo: string; serie: string; filial_id: string | null; sector_id: string | null; }
 
 export default function Dashboard() {
   const { user, role } = useAuth();
@@ -55,6 +56,9 @@ export default function Dashboard() {
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printers, setPrinters] = useState<PrinterFull[]>([]);
+  const [noReadingPrinters, setNoReadingPrinters] = useState<NoReadingPrinter[]>([]);
+  const [showNoReadingPanel, setShowNoReadingPanel] = useState(false);
+  const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
