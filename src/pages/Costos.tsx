@@ -603,6 +603,50 @@ export default function Costos() {
             </Tabs>
           </>
         )}
+
+        {/* Wizard: completar precios faltantes */}
+        <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Wand2 className="w-5 h-5 text-warning" />Completar precios faltantes</DialogTitle>
+              <CardDescription>Ingresá el precio por página para los modelos con impresoras activas. Dejá vacío los que no quieras configurar ahora.</CardDescription>
+            </DialogHeader>
+            <div className="space-y-2 mt-4">
+              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+                <div className="col-span-5">Modelo</div>
+                <div className="col-span-2 text-center">Impresoras</div>
+                <div className="col-span-2">Tipo</div>
+                <div className="col-span-3">Precio (gs)</div>
+              </div>
+              {modelosSinPrecio.map(m => (
+                <div key={m.modelo} className="grid grid-cols-12 gap-2 items-center px-3 py-2 rounded hover:bg-muted/30">
+                  <div className="col-span-5 font-medium text-sm">{m.modelo}</div>
+                  <div className="col-span-2 text-center text-sm text-muted-foreground">{m.count}</div>
+                  <div className="col-span-2 text-xs capitalize">{m.tipoImpresion === 'color' ? '🎨 Color' : '⚫ B/N'}</div>
+                  <div className="col-span-3 flex gap-1">
+                    <Input type="number" min="0" step="0.01" placeholder="B/N"
+                      value={wizardPrices[m.modelo]?.bn || ''}
+                      onChange={e => setWizardPrices(p => ({ ...p, [m.modelo]: { ...p[m.modelo], bn: e.target.value } }))}
+                      className="h-8 text-xs" />
+                    {m.tipoImpresion === 'color' && (
+                      <Input type="number" min="0" step="0.01" placeholder="Color"
+                        value={wizardPrices[m.modelo]?.color || ''}
+                        onChange={e => setWizardPrices(p => ({ ...p, [m.modelo]: { ...p[m.modelo], color: e.target.value } }))}
+                        className="h-8 text-xs" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+              <Button variant="outline" onClick={() => setWizardOpen(false)}>Cancelar</Button>
+              <Button onClick={saveWizardPrices} disabled={saving} className="gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Guardar precios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
