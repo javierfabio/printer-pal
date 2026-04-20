@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Printer, CheckCircle, Wrench, TrendingUp, Activity, FileText, BarChart3,
-  ArrowUpRight, Clock, Package
+  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -40,6 +40,7 @@ interface RepairOpen {
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
 interface PrinterFull { id: string; sector_id: string | null; filial_id: string | null; }
+interface NoReadingPrinter { id: string; nombre: string; modelo: string; serie: string; filial_id: string | null; sector_id: string | null; }
 
 export default function Dashboard() {
   const { user, role } = useAuth();
@@ -55,12 +56,15 @@ export default function Dashboard() {
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printers, setPrinters] = useState<PrinterFull[]>([]);
+  const [noReadingPrinters, setNoReadingPrinters] = useState<NoReadingPrinter[]>([]);
+  const [showNoReadingPanel, setShowNoReadingPanel] = useState(false);
+  const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [printersResp, readingsResp, secResp, filResp, repairsResp] = await Promise.all([
+      const [printersResp, readingsResp, secResp, filResp, repairsResp, allReadingsResp, preciosResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie, modelo, sector_id)')
@@ -72,6 +76,8 @@ export default function Dashboard() {
           .select('id, printer_id, fecha_salida, motivo, tecnico_responsable, impresoras:printer_id(nombre, serie, modelo)')
           .eq('estado', 'en_reparacion')
           .order('fecha_salida', { ascending: false }),
+        supabase.from('lecturas_contadores').select('impresora_id'),
+        supabase.from('precios_modelo').select('modelo'),
       ]);
 
       if (repairsResp.data) setOpenRepairs(repairsResp.data as any);
@@ -82,6 +88,20 @@ export default function Dashboard() {
       if (printersResp.data) {
         const p = printersResp.data;
         setPrinters(p.map(x => ({ id: x.id, sector_id: x.sector_id, filial_id: x.filial_id })));
+        // Impresoras sin lecturas
+        const idsConLectura = new Set((allReadingsResp.data || []).map((r: any) => r.impresora_id));
+        const sinLectura = p
+          .filter(x => !idsConLectura.has(x.id) && x.estado !== 'baja')
+          .map(x => ({ id: x.id, nombre: x.nombre, modelo: x.modelo, serie: x.serie, filial_id: x.filial_id, sector_id: x.sector_id }));
+        setNoReadingPrinters(sinLectura);
+        // Modelos sin precio
+        const preciosSet = new Set((preciosResp.data || []).map((x: any) => x.modelo));
+        const modelosCount: Record<string, number> = {};
+        p.filter(x => x.estado === 'activa').forEach(x => {
+          if (!preciosSet.has(x.modelo)) modelosCount[x.modelo] = (modelosCount[x.modelo] || 0) + 1;
+        });
+        setModelosSinPrecio(Object.entries(modelosCount).map(([modelo, count]) => ({ modelo, count })).sort((a, b) => b.count - a.count));
+
         const totalNegro = p.reduce((acc, x) => acc + (x.contador_negro_actual || 0) - (x.contador_negro_inicial || 0), 0);
         const totalColor = p.reduce((acc, x) => acc + (x.contador_color_actual || 0) - (x.contador_color_inicial || 0), 0);
         setStats({
@@ -179,6 +199,84 @@ export default function Dashboard() {
                 </Button>
               )}
             </CardContent>
+          </Card>
+        )}
+
+        {/* Alerta: modelos sin precio configurado */}
+        {modelosSinPrecio.length > 0 && (
+          <Card className="border-warning/50 bg-warning/5 animate-fade-in cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => navigate('/dashboard/costos')}>
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2 rounded-lg bg-warning/15 flex-shrink-0"><DollarSign className="w-5 h-5 text-warning" /></div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">⚠️ {modelosSinPrecio.length} modelo{modelosSinPrecio.length !== 1 ? 's' : ''} sin precio configurado</p>
+                    <p className="text-xs text-muted-foreground truncate">El costo total puede estar subestimado · Click para completar precios</p>
+                  </div>
+                </div>
+                <ArrowUpRight className="w-4 h-4 text-warning flex-shrink-0" />
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Alerta: impresoras sin lecturas */}
+        {noReadingPrinters.length > 0 && (
+          <Card className="border-orange-500/50 bg-orange-500/5 animate-fade-in">
+            <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowNoReadingPanel(v => !v)}>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-orange-500">
+                  <FileWarning className="w-5 h-5" />
+                  {noReadingPrinters.length} impresora{noReadingPrinters.length !== 1 ? 's' : ''} sin lecturas registradas
+                </CardTitle>
+                <Button variant="ghost" size="sm">{showNoReadingPanel ? 'Ocultar' : 'Ver listado'}</Button>
+              </div>
+              <CardDescription>Equipos activos que nunca tuvieron una lectura de contadores</CardDescription>
+            </CardHeader>
+            {showNoReadingPanel && (
+              <CardContent>
+                <div className="space-y-1 max-h-72 overflow-y-auto">
+                  {filiales.map(f => {
+                    const items = noReadingPrinters.filter(p => p.filial_id === f.id);
+                    if (items.length === 0) return null;
+                    return (
+                      <div key={f.id} className="mb-3">
+                        <p className="text-xs font-semibold text-orange-500 mb-1">{f.nombre} ({items.length})</p>
+                        <div className="space-y-1 ml-2">
+                          {items.map(p => (
+                            <div key={p.id} className="flex items-center justify-between p-2 rounded bg-background/50 border text-sm">
+                              <div className="min-w-0 flex-1">
+                                <span className="font-medium">{p.nombre}</span>
+                                <span className="text-muted-foreground"> — {p.modelo}</span>
+                                <span className="text-xs text-muted-foreground block truncate">Serie: {p.serie} · {sectores.find(s => s.id === p.sector_id)?.nombre || 'Sin sector'}</span>
+                              </div>
+                              <Button size="sm" variant="outline" className="ml-2 flex-shrink-0" onClick={() => navigate(`/dashboard/registro-uso?impresora=${p.id}`)}>Registrar</Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(() => {
+                    const sinFilial = noReadingPrinters.filter(p => !p.filial_id);
+                    if (sinFilial.length === 0) return null;
+                    return (
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-muted-foreground mb-1">Sin filial asignada ({sinFilial.length})</p>
+                        <div className="space-y-1 ml-2">
+                          {sinFilial.map(p => (
+                            <div key={p.id} className="flex items-center justify-between p-2 rounded bg-background/50 border text-sm">
+                              <span className="font-medium">{p.nombre} <span className="text-muted-foreground">— {p.modelo}</span></span>
+                              <Button size="sm" variant="outline" onClick={() => navigate(`/dashboard/registro-uso?impresora=${p.id}`)}>Registrar</Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </CardContent>
+            )}
           </Card>
         )}
 

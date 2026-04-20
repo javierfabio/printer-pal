@@ -18,7 +18,9 @@ import {
   TrendingUp,
   Plus,
   Trash2,
-  Wrench
+  Wrench,
+  AlertTriangle,
+  Wand2,
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -189,6 +191,51 @@ export default function Costos() {
   // Unique models from printers
   const uniqueModelos = [...new Set(impresoras.map(i => i.modelo))].sort();
 
+  // Modelos que tienen impresoras activas pero no tienen precio configurado
+  const modelosSinPrecio = uniqueModelos
+    .filter(m => !preciosModelo.find(p => p.modelo === m))
+    .map(modelo => {
+      const imps = impresoras.filter(i => i.modelo === modelo);
+      const tipoImpresion = imps[0]?.tipo_impresion || 'monocromatico';
+      return { modelo, count: imps.length, tipoImpresion };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardPrices, setWizardPrices] = useState<Record<string, { bn: string; color: string }>>({});
+
+  const openWizard = () => {
+    const initial: Record<string, { bn: string; color: string }> = {};
+    modelosSinPrecio.forEach(m => { initial[m.modelo] = { bn: '', color: '' }; });
+    setWizardPrices(initial);
+    setWizardOpen(true);
+  };
+
+  const saveWizardPrices = async () => {
+    setSaving(true);
+    const rows = Object.entries(wizardPrices)
+      .filter(([_, v]) => v.bn || v.color)
+      .map(([modelo, v]) => ({
+        modelo,
+        precio_bn: parseFloat(v.bn) || 0,
+        precio_color: v.color ? parseFloat(v.color) : null,
+      }));
+    if (rows.length === 0) {
+      toast({ variant: 'destructive', title: 'Nada para guardar', description: 'Completá al menos un precio' });
+      setSaving(false);
+      return;
+    }
+    const { error } = await supabase.from('precios_modelo').insert(rows);
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } else {
+      toast({ title: 'Precios guardados', description: `${rows.length} modelo(s) actualizado(s)` });
+      setWizardOpen(false);
+      await fetchData();
+    }
+    setSaving(false);
+  };
+
   const exportPDF = () => {
     const doc = new jsPDF('landscape');
     const startY = addPDFHeader(doc, 'Informe de Costos', `Costo promedio por página: ${avgCostPerPage.toFixed(2)} gs`);
@@ -277,6 +324,13 @@ export default function Costos() {
                         <CardDescription>Precio por página B/N y Color según el modelo</CardDescription>
                       </div>
                       {isAdmin && (
+                        <div className="flex gap-2">
+                        {modelosSinPrecio.length > 0 && (
+                          <Button size="sm" variant="outline" className="gap-2 border-warning text-warning hover:bg-warning/10" onClick={openWizard}>
+                            <Wand2 className="w-4 h-4" />
+                            Completar {modelosSinPrecio.length} faltante{modelosSinPrecio.length !== 1 ? 's' : ''}
+                          </Button>
+                        )}
                         <Dialog open={precioDialogOpen} onOpenChange={setPrecioDialogOpen}>
                           <DialogTrigger asChild>
                             <Button size="sm" className="gap-2"><Plus className="w-4 h-4" />Agregar Precio</Button>
@@ -308,8 +362,18 @@ export default function Costos() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        </div>
                       )}
                     </div>
+                    {modelosSinPrecio.length > 0 && (
+                      <div className="mt-3 p-3 rounded-lg bg-warning/5 border border-warning/30 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <p className="font-medium text-warning">{modelosSinPrecio.length} modelo{modelosSinPrecio.length !== 1 ? 's' : ''} con impresoras activas pero sin precio configurado</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">El cálculo de costos no incluye estos modelos. Usá el asistente de arriba para completarlos rápido.</p>
+                        </div>
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {preciosModelo.length === 0 ? (
@@ -539,6 +603,50 @@ export default function Costos() {
             </Tabs>
           </>
         )}
+
+        {/* Wizard: completar precios faltantes */}
+        <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+          <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2"><Wand2 className="w-5 h-5 text-warning" />Completar precios faltantes</DialogTitle>
+              <CardDescription>Ingresá el precio por página para los modelos con impresoras activas. Dejá vacío los que no quieras configurar ahora.</CardDescription>
+            </DialogHeader>
+            <div className="space-y-2 mt-4">
+              <div className="grid grid-cols-12 gap-2 px-3 py-2 text-xs font-semibold text-muted-foreground border-b">
+                <div className="col-span-5">Modelo</div>
+                <div className="col-span-2 text-center">Impresoras</div>
+                <div className="col-span-2">Tipo</div>
+                <div className="col-span-3">Precio (gs)</div>
+              </div>
+              {modelosSinPrecio.map(m => (
+                <div key={m.modelo} className="grid grid-cols-12 gap-2 items-center px-3 py-2 rounded hover:bg-muted/30">
+                  <div className="col-span-5 font-medium text-sm">{m.modelo}</div>
+                  <div className="col-span-2 text-center text-sm text-muted-foreground">{m.count}</div>
+                  <div className="col-span-2 text-xs capitalize">{m.tipoImpresion === 'color' ? '🎨 Color' : '⚫ B/N'}</div>
+                  <div className="col-span-3 flex gap-1">
+                    <Input type="number" min="0" step="0.01" placeholder="B/N"
+                      value={wizardPrices[m.modelo]?.bn || ''}
+                      onChange={e => setWizardPrices(p => ({ ...p, [m.modelo]: { ...p[m.modelo], bn: e.target.value } }))}
+                      className="h-8 text-xs" />
+                    {m.tipoImpresion === 'color' && (
+                      <Input type="number" min="0" step="0.01" placeholder="Color"
+                        value={wizardPrices[m.modelo]?.color || ''}
+                        onChange={e => setWizardPrices(p => ({ ...p, [m.modelo]: { ...p[m.modelo], color: e.target.value } }))}
+                        className="h-8 text-xs" />
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-4 border-t mt-4">
+              <Button variant="outline" onClick={() => setWizardOpen(false)}>Cancelar</Button>
+              <Button onClick={saveWizardPrices} disabled={saving} className="gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Guardar precios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

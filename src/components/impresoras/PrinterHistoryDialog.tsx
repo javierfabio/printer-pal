@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, History, FileText, Wrench, Calendar, User } from 'lucide-react';
+import { Loader2, History, FileText, Wrench, Calendar, User, MapPin, Building2, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { RepairTimeline } from './RepairTimeline';
@@ -22,6 +22,15 @@ interface TimelineEvent {
   user?: string;
 }
 
+interface LocationEvent {
+  id: string;
+  date: string;
+  campo: 'sector' | 'filial' | 'sector_id' | 'filial_id';
+  from: string;
+  to: string;
+  user: string;
+}
+
 interface PrinterHistoryDialogProps {
   printerId: string | null;
   printerName?: string;
@@ -32,6 +41,9 @@ interface PrinterHistoryDialogProps {
 export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChange }: PrinterHistoryDialogProps) {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [locationEvents, setLocationEvents] = useState<LocationEvent[]>([]);
+  const [sectorMap, setSectorMap] = useState<Record<string, string>>({});
+  const [filialMap, setFilialMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open && printerId) {
@@ -42,7 +54,7 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
   const fetchAllHistory = async (id: string) => {
     setLoading(true);
 
-    const [cambiosResp, lecturasResp, piezasResp] = await Promise.all([
+    const [cambiosResp, lecturasResp, piezasResp, sectoresResp, filialesResp] = await Promise.all([
       supabase
         .from('historial_cambios')
         .select('*, profiles:usuario_id(email, full_name)')
@@ -61,11 +73,36 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
         .eq('impresora_id', id)
         .order('fecha_cambio', { ascending: false })
         .limit(100),
+      supabase.from('sectores').select('id, nombre'),
+      supabase.from('filiales').select('id, nombre'),
     ]);
 
+    const sMap: Record<string, string> = {};
+    (sectoresResp.data || []).forEach((s: any) => { sMap[s.id] = s.nombre; });
+    setSectorMap(sMap);
+    const fMap: Record<string, string> = {};
+    (filialesResp.data || []).forEach((f: any) => { fMap[f.id] = f.nombre; });
+    setFilialMap(fMap);
+
     const timeline: TimelineEvent[] = [];
+    const locations: LocationEvent[] = [];
 
     (cambiosResp.data || []).forEach((h: any) => {
+      const campo = String(h.campo_modificado).toLowerCase();
+      const isLocation = campo === 'sector' || campo === 'sector_id' || campo === 'filial' || campo === 'filial_id';
+      if (isLocation) {
+        const isSector = campo.startsWith('sector');
+        const lookup = isSector ? sMap : fMap;
+        const from = h.valor_anterior ? (lookup[h.valor_anterior] || h.valor_anterior) : '— sin asignar —';
+        const to = h.valor_nuevo ? (lookup[h.valor_nuevo] || h.valor_nuevo) : '— sin asignar —';
+        locations.push({
+          id: h.id,
+          date: h.created_at,
+          campo: campo as LocationEvent['campo'],
+          from, to,
+          user: h.profiles?.full_name || h.profiles?.email || 'Desconocido',
+        });
+      }
       timeline.push({
         id: h.id,
         date: h.created_at,
@@ -104,8 +141,10 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
     });
 
     timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    locations.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     setEvents(timeline);
+    setLocationEvents(locations);
     setLoading(false);
   };
 
@@ -139,9 +178,10 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
         </DialogHeader>
 
         <Tabs defaultValue="general" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">Cambios, lecturas y piezas</TabsTrigger>
             <TabsTrigger value="reparaciones" className="gap-1"><Wrench className="w-4 h-4" />Reparaciones</TabsTrigger>
+            <TabsTrigger value="ubicaciones" className="gap-1"><MapPin className="w-4 h-4" />Ubicaciones</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general">
@@ -196,6 +236,60 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
           <TabsContent value="reparaciones">
             <div className="overflow-y-auto max-h-[60vh] pr-1 mt-2">
               {printerId && <RepairTimeline printerId={printerId} />}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="ubicaciones">
+            <div className="overflow-y-auto max-h-[60vh] pr-1 mt-2">
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                </div>
+              ) : locationEvents.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <MapPin className="w-12 h-12 mx-auto mb-2 opacity-30" />
+                  <p>Sin cambios de ubicación registrados</p>
+                  <p className="text-xs mt-1">Los traslados entre filiales o sectores aparecerán acá</p>
+                </div>
+              ) : (
+                <div className="relative pl-6 space-y-0">
+                  <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-border" />
+                  {locationEvents.map((ev) => {
+                    const isSector = ev.campo.startsWith('sector');
+                    return (
+                      <div key={ev.id} className="relative pb-4">
+                        <div className={cn(
+                          "absolute -left-6 top-1 w-5 h-5 rounded-full border-2 border-background flex items-center justify-center",
+                          isSector ? "bg-info text-info-foreground" : "bg-primary text-primary-foreground",
+                        )}>
+                          {isSector ? <MapPin className="w-3 h-3" /> : <Building2 className="w-3 h-3" />}
+                        </div>
+                        <div className="bg-muted/50 rounded-lg p-3 ml-2">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <Badge variant="outline" className={cn("text-xs", isSector ? "border-info text-info" : "border-primary text-primary")}>
+                              {isSector ? 'Cambio de Sector' : 'Cambio de Filial'}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground whitespace-nowrap flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(ev.date).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {' '}
+                              {new Date(ev.date).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm font-medium flex-wrap">
+                            <span className="px-2 py-0.5 rounded bg-destructive/10 text-destructive">{ev.from}</span>
+                            <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                            <span className="px-2 py-0.5 rounded bg-success/10 text-success">{ev.to}</span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                            <User className="w-3 h-3" />{ev.user}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>
