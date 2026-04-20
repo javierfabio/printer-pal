@@ -324,6 +324,13 @@ export default function Costos() {
                         <CardDescription>Precio por página B/N y Color según el modelo</CardDescription>
                       </div>
                       {isAdmin && (
+                        <div className="flex gap-2">
+                        {modelosSinPrecio.length > 0 && (
+                          <Button size="sm" variant="outline" className="gap-2 border-warning text-warning hover:bg-warning/10" onClick={openWizard}>
+                            <Wand2 className="w-4 h-4" />
+                            Completar {modelosSinPrecio.length} faltante{modelosSinPrecio.length !== 1 ? 's' : ''}
+                          </Button>
+                        )}
                         <Dialog open={precioDialogOpen} onOpenChange={setPrecioDialogOpen}>
                           <DialogTrigger asChild>
                             <Button size="sm" className="gap-2"><Plus className="w-4 h-4" />Agregar Precio</Button>
@@ -355,8 +362,18 @@ export default function Costos() {
                             </div>
                           </DialogContent>
                         </Dialog>
+                        </div>
                       )}
                     </div>
+                    {modelosSinPrecio.length > 0 && (
+                      <div className="mt-3 p-3 rounded-lg bg-warning/5 border border-warning/30 flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+                        <div className="text-sm">
+                          <p className="font-medium text-warning">{modelosSinPrecio.length} modelo{modelosSinPrecio.length !== 1 ? 's' : ''} con impresoras activas pero sin precio configurado</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">El cálculo de costos no incluye estos modelos. Usá el asistente de arriba para completarlos rápido.</p>
+                        </div>
+                      </div>
+                    )}
                   </CardHeader>
                   <CardContent>
                     {preciosModelo.length === 0 ? (
