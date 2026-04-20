@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, History, FileText, Wrench, Calendar, User } from 'lucide-react';
+import { Loader2, History, FileText, Wrench, Calendar, User, MapPin, Building2, ArrowRight } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { RepairTimeline } from './RepairTimeline';
@@ -22,6 +22,15 @@ interface TimelineEvent {
   user?: string;
 }
 
+interface LocationEvent {
+  id: string;
+  date: string;
+  campo: 'sector' | 'filial' | 'sector_id' | 'filial_id';
+  from: string;
+  to: string;
+  user: string;
+}
+
 interface PrinterHistoryDialogProps {
   printerId: string | null;
   printerName?: string;
@@ -32,6 +41,9 @@ interface PrinterHistoryDialogProps {
 export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChange }: PrinterHistoryDialogProps) {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [locationEvents, setLocationEvents] = useState<LocationEvent[]>([]);
+  const [sectorMap, setSectorMap] = useState<Record<string, string>>({});
+  const [filialMap, setFilialMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (open && printerId) {
