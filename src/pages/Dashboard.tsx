@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Printer, CheckCircle, Wrench, TrendingUp, Activity, FileText, BarChart3,
-  ArrowUpRight, Clock, Package
+  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
