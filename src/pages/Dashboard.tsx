@@ -355,6 +355,10 @@ export default function Dashboard() {
           </Card>
         )}
 
+        {!loading && printers.length > 0 && (
+          <DashboardCharts printers={printers} filiales={filiales} readings={chartReadings} />
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Printers */}
           <Card className="animate-fade-in">
