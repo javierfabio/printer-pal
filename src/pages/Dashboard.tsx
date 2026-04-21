@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { usePartsAlerts, TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
@@ -39,7 +40,22 @@ interface RepairOpen {
 
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
-interface PrinterFull { id: string; sector_id: string | null; filial_id: string | null; }
+interface PrinterFull {
+  id: string;
+  nombre: string;
+  modelo: string;
+  sector_id: string | null;
+  filial_id: string | null;
+  contador_negro_actual: number | null;
+  contador_color_actual: number | null;
+}
+interface ReadingMin {
+  id: string;
+  impresora_id: string;
+  fecha_lectura: string;
+  contador_negro: number | null;
+  contador_color: number | null;
+}
 interface NoReadingPrinter { id: string; nombre: string; modelo: string; serie: string; filial_id: string | null; sector_id: string | null; }
 
 export default function Dashboard() {
@@ -56,6 +72,7 @@ export default function Dashboard() {
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printers, setPrinters] = useState<PrinterFull[]>([]);
+  const [chartReadings, setChartReadings] = useState<ReadingMin[]>([]);
   const [noReadingPrinters, setNoReadingPrinters] = useState<NoReadingPrinter[]>([]);
   const [showNoReadingPanel, setShowNoReadingPanel] = useState(false);
   const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
@@ -80,6 +97,16 @@ export default function Dashboard() {
         supabase.from('precios_modelo').select('modelo'),
       ]);
 
+      // Lecturas para gráfico mensual (últimos 6 meses)
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const chartReadingsResp = await supabase
+        .from('lecturas_contadores')
+        .select('id, impresora_id, fecha_lectura, contador_negro, contador_color')
+        .gte('fecha_lectura', sixMonthsAgo.toISOString())
+        .order('fecha_lectura', { ascending: true });
+      if (chartReadingsResp.data) setChartReadings(chartReadingsResp.data as ReadingMin[]);
+
       if (repairsResp.data) setOpenRepairs(repairsResp.data as any);
 
       if (secResp.data) setSectores(secResp.data);
@@ -87,7 +114,15 @@ export default function Dashboard() {
 
       if (printersResp.data) {
         const p = printersResp.data;
-        setPrinters(p.map(x => ({ id: x.id, sector_id: x.sector_id, filial_id: x.filial_id })));
+        setPrinters(p.map(x => ({
+          id: x.id,
+          nombre: x.nombre,
+          modelo: x.modelo,
+          sector_id: x.sector_id,
+          filial_id: x.filial_id,
+          contador_negro_actual: x.contador_negro_actual,
+          contador_color_actual: x.contador_color_actual,
+        })));
         // Impresoras sin lecturas
         const idsConLectura = new Set((allReadingsResp.data || []).map((r: any) => r.impresora_id));
         const sinLectura = p
@@ -318,6 +353,10 @@ export default function Dashboard() {
               )}
             </CardContent>
           </Card>
+        )}
+
+        {!loading && printers.length > 0 && (
+          <DashboardCharts printers={printers} filiales={filiales} readings={chartReadings} />
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
