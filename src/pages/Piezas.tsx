@@ -764,6 +764,10 @@ export default function Piezas() {
               <Package className="w-4 h-4" />
               Catálogo por Modelo
             </TabsTrigger>
+            <TabsTrigger value="stock" className="gap-2">
+              <Package className="w-4 h-4" />
+              Stock
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="configuracion" className="gap-2">
                 <Settings className="w-4 h-4" />
