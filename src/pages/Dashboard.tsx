@@ -243,6 +243,21 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground">{stat.title}</p>
                     <p className="text-3xl font-bold mt-1">{loading ? '...' : stat.value}</p>
                     <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
+                    {stat.trend && stat.trend.pct !== null && (
+                      <div className="flex items-center gap-1 mt-2">
+                        {stat.trend.dir === 'up' && <ArrowUp className="w-3 h-3 text-success" />}
+                        {stat.trend.dir === 'down' && <ArrowDown className="w-3 h-3 text-destructive" />}
+                        {stat.trend.dir === 'flat' && <Minus className="w-3 h-3 text-muted-foreground" />}
+                        <span className={cn("text-xs font-semibold",
+                          stat.trend.dir === 'up' && "text-success",
+                          stat.trend.dir === 'down' && "text-destructive",
+                          stat.trend.dir === 'flat' && "text-muted-foreground"
+                        )}>
+                          {Math.abs(stat.trend.pct).toFixed(0)}%
+                        </span>
+                        <span className="text-[10px] text-muted-foreground ml-1">{stat.trendLabel}</span>
+                      </div>
+                    )}
                   </div>
                   <div className={cn('p-3 rounded-xl', stat.bgColor)}><stat.icon className={cn('w-6 h-6', stat.color)} /></div>
                 </div>
