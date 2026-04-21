@@ -1047,6 +1047,18 @@ export default function Piezas() {
 
           {isAdmin && (
             <TabsContent value="configuracion">
+
+          <TabsContent value="stock">
+            <StockTab
+              piezas={catalogo.map(c => ({ id: c.id, nombre_pieza: c.nombre_pieza, tipo_pieza: c.tipo_pieza, stock_actual: c.stock_actual }))}
+              impresoras={impresoras.map(i => ({ id: i.id, nombre: i.nombre, serie: i.serie }))}
+              onChange={fetchData}
+            />
+          </TabsContent>
+
+          {/* placeholder */}
+          {isAdmin && false && (
+            <TabsContent value="configuracion-dummy">
               <Card>
                 <CardHeader>
                   <div className="flex justify-between items-center">
