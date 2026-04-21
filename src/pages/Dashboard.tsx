@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Printer, CheckCircle, Wrench, TrendingUp, Activity, FileText, BarChart3,
-  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign
+  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign, ArrowUp, ArrowDown, Minus
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
   totalPaginasNegro: number; totalPaginasColor: number; lecturasHoy: number;
+  paginasMesActual: number; paginasMesAnterior: number;
+  lecturasMes: number; lecturasMesAnterior: number;
 }
 
 interface TopPrinter {
@@ -65,6 +67,8 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats>({
     total: 0, activas: 0, enReparacion: 0, inactivas: 0,
     totalPaginasNegro: 0, totalPaginasColor: 0, lecturasHoy: 0,
+    paginasMesActual: 0, paginasMesAnterior: 0,
+    lecturasMes: 0, lecturasMesAnterior: 0,
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
@@ -146,6 +150,8 @@ export default function Dashboard() {
           inactivas: p.filter(x => x.estado === 'inactiva' || x.estado === 'baja').length,
           totalPaginasNegro: totalNegro, totalPaginasColor: totalColor,
           lecturasHoy: 0,
+          paginasMesActual: 0, paginasMesAnterior: 0,
+          lecturasMes: 0, lecturasMesAnterior: 0,
         });
         const sorted = [...p].map(x => ({ ...x, totalPages: (x.contador_negro_actual || 0) + (x.contador_color_actual || 0) }))
           .sort((a, b) => b.totalPages - a.totalPages).slice(0, 5);
@@ -157,6 +163,37 @@ export default function Dashboard() {
         const today = new Date().toDateString();
         const todayCount = readingsResp.data.filter(r => new Date(r.fecha_lectura).toDateString() === today).length;
         setStats(prev => ({ ...prev, lecturasHoy: todayCount }));
+      }
+
+      // Calcular tendencias mes actual vs anterior usando chartReadings
+      if (chartReadingsResp.data && chartReadingsResp.data.length > 0) {
+        const now = new Date();
+        const startCurrent = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startPrev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const all = chartReadingsResp.data as ReadingMin[];
+        // Lecturas por mes
+        const lectMes = all.filter(r => new Date(r.fecha_lectura) >= startCurrent).length;
+        const lectMesAnt = all.filter(r => {
+          const d = new Date(r.fecha_lectura);
+          return d >= startPrev && d < startCurrent;
+        }).length;
+        // Páginas consumidas: por impresora, max - min en cada periodo
+        const pagesInRange = (from: Date, to: Date | null) => {
+          const byPrinter: Record<string, { min: number; max: number }> = {};
+          for (const r of all) {
+            const d = new Date(r.fecha_lectura);
+            if (d < from) continue;
+            if (to && d >= to) continue;
+            const tot = (r.contador_negro || 0) + (r.contador_color || 0);
+            const cur = byPrinter[r.impresora_id];
+            if (!cur) byPrinter[r.impresora_id] = { min: tot, max: tot };
+            else { cur.min = Math.min(cur.min, tot); cur.max = Math.max(cur.max, tot); }
+          }
+          return Object.values(byPrinter).reduce((acc, v) => acc + Math.max(0, v.max - v.min), 0);
+        };
+        const pagMes = pagesInRange(startCurrent, null);
+        const pagMesAnt = pagesInRange(startPrev, startCurrent);
+        setStats(prev => ({ ...prev, paginasMesActual: pagMes, paginasMesAnterior: pagMesAnt, lecturasMes: lectMes, lecturasMesAnterior: lectMesAnt }));
       }
       setLoading(false);
     };
@@ -170,11 +207,20 @@ export default function Dashboard() {
     return filiales.find(f => f.id === p.filial_id)?.nombre || '';
   };
 
+  const trendOf = (current: number, previous: number): { pct: number | null; dir: 'up' | 'down' | 'flat' } => {
+    if (previous === 0) return { pct: current > 0 ? 100 : null, dir: current > 0 ? 'up' : 'flat' };
+    const pct = ((current - previous) / previous) * 100;
+    if (Math.abs(pct) < 1) return { pct: 0, dir: 'flat' };
+    return { pct, dir: pct > 0 ? 'up' : 'down' };
+  };
+  const pagesTrend = trendOf(stats.paginasMesActual, stats.paginasMesAnterior);
+  const readingsTrend = trendOf(stats.lecturasMes, stats.lecturasMesAnterior);
+
   const statCards = [
-    { title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10' },
-    { title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10' },
-    { title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas') },
-    { title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: 'Registros del día', icon: Clock, color: 'text-info', bgColor: 'bg-info/10' },
+    { title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
+    { title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
+    { title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
+    { title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
   ];
 
   return (
@@ -197,6 +243,21 @@ export default function Dashboard() {
                     <p className="text-sm text-muted-foreground">{stat.title}</p>
                     <p className="text-3xl font-bold mt-1">{loading ? '...' : stat.value}</p>
                     <p className="text-xs text-muted-foreground mt-1">{stat.subtitle}</p>
+                    {stat.trend && stat.trend.pct !== null && (
+                      <div className="flex items-center gap-1 mt-2">
+                        {stat.trend.dir === 'up' && <ArrowUp className="w-3 h-3 text-success" />}
+                        {stat.trend.dir === 'down' && <ArrowDown className="w-3 h-3 text-destructive" />}
+                        {stat.trend.dir === 'flat' && <Minus className="w-3 h-3 text-muted-foreground" />}
+                        <span className={cn("text-xs font-semibold",
+                          stat.trend.dir === 'up' && "text-success",
+                          stat.trend.dir === 'down' && "text-destructive",
+                          stat.trend.dir === 'flat' && "text-muted-foreground"
+                        )}>
+                          {Math.abs(stat.trend.pct).toFixed(0)}%
+                        </span>
+                        <span className="text-[10px] text-muted-foreground ml-1">{stat.trendLabel}</span>
+                      </div>
+                    )}
                   </div>
                   <div className={cn('p-3 rounded-xl', stat.bgColor)}><stat.icon className={cn('w-6 h-6', stat.color)} /></div>
                 </div>

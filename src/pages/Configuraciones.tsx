@@ -8,6 +8,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code, DatabaseBackup } from 'lucide-react';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import JSZip from 'jszip';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -188,10 +189,15 @@ export default function Configuraciones() {
           <p className="text-muted-foreground mt-1">Administración del sistema, sectores, filiales y personalización</p>
         </div>
 
-        {/* Database Backup */}
-        <Card>
+        <Accordion type="multiple" defaultValue={["sistema"]} className="space-y-3">
+
+          <AccordionItem value="backup" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><DatabaseBackup className="w-5 h-5 text-primary" />Migración / Backup de Datos</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+        <Card className="border-0 shadow-none">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><DatabaseBackup className="w-5 h-5" />Migración / Backup de Datos</CardTitle>
             <CardDescription>Exporta toda la base de datos en un archivo ZIP con CSVs separados por tabla, ideal para migrar a otro entorno o guardar una copia local.</CardDescription>
           </CardHeader>
           <CardContent>
@@ -202,10 +208,16 @@ export default function Configuraciones() {
             <p className="text-xs text-muted-foreground mt-2">Incluye: impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
 
-        <Card>
+          <AccordionItem value="sistema" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><Code className="w-5 h-5 text-primary" />Configuración del Sistema</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+        <Card className="border-0 shadow-none">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Code className="w-5 h-5" />Configuración del Sistema</CardTitle>
             <CardDescription>Nombre del sistema, copyright y créditos. Se muestran en el footer del sistema.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -228,10 +240,16 @@ export default function Configuraciones() {
             </div>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Inactivity */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Clock className="w-5 h-5" />Cierre por Inactividad</CardTitle><CardDescription>Tiempo de inactividad antes de cerrar sesión</CardDescription></CardHeader>
+          <AccordionItem value="inactividad" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><Clock className="w-5 h-5 text-primary" />Cierre por Inactividad</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+        <Card className="border-0 shadow-none">
+          <CardHeader><CardDescription>Tiempo de inactividad antes de cerrar sesión</CardDescription></CardHeader>
           <CardContent>
             <div className="flex gap-3 items-end">
               <div className="flex-1 space-y-2">
@@ -243,10 +261,16 @@ export default function Configuraciones() {
             </div>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Logo */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><ImageIcon className="w-5 h-5" />Logo Corporativo</CardTitle><CardDescription>Aparecerá en PDFs. Máx: {reportConfig.maxImageSizeKB}KB</CardDescription></CardHeader>
+          <AccordionItem value="logo" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><ImageIcon className="w-5 h-5 text-primary" />Logo Corporativo</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+        <Card className="border-0 shadow-none">
+          <CardHeader><CardDescription>Aparecerá en PDFs. Máx: {reportConfig.maxImageSizeKB}KB</CardDescription></CardHeader>
           <CardContent>
             <div className="flex items-center gap-6">
               <div className="w-24 h-24 rounded-lg border-2 border-dashed border-border flex items-center justify-center bg-muted/30 overflow-hidden shrink-0">
@@ -263,10 +287,16 @@ export default function Configuraciones() {
             </div>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Company Name */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><Building className="w-5 h-5" />Nombre de Empresa</CardTitle><CardDescription>Aparece en encabezado de PDFs</CardDescription></CardHeader>
+          <AccordionItem value="empresa" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><Building className="w-5 h-5 text-primary" />Nombre de Empresa</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+        <Card className="border-0 shadow-none">
+          <CardHeader><CardDescription>Aparece en encabezado de PDFs</CardDescription></CardHeader>
           <CardContent>
             <div className="flex gap-3 items-end">
               <div className="flex-1 space-y-2"><Label>Nombre</Label><Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Mi Empresa S.A." /></div>
@@ -274,10 +304,15 @@ export default function Configuraciones() {
             </div>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
 
-        {/* Report Config */}
-        <Card>
-          <CardHeader><CardTitle className="flex items-center gap-2"><FileText className="w-5 h-5" />Configuración de Reportes</CardTitle></CardHeader>
+          <AccordionItem value="reportes" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><FileText className="w-5 h-5 text-primary" />Configuración de Reportes</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+        <Card className="border-0 shadow-none">
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Nombre del Responsable</Label><Input value={reportConfig.responsibleName} onChange={e => setReportConfig({ ...reportConfig, responsibleName: e.target.value })} placeholder="Juan Pérez" /></div>
@@ -299,7 +334,14 @@ export default function Configuraciones() {
             <div className="flex justify-end"><Button onClick={() => { saveReportConfig(reportConfig); toast({ title: 'Guardado' }); }}>Guardar Configuración</Button></div>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
 
+          <AccordionItem value="ubicaciones" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><MapPin className="w-5 h-5 text-primary" />Sectores y Filiales</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Sectores */}
           <Card>
@@ -365,6 +407,9 @@ export default function Configuraciones() {
             </CardContent>
           </Card>
         </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
     </DashboardLayout>
   );
