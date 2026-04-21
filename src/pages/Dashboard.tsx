@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Printer, CheckCircle, Wrench, TrendingUp, Activity, FileText, BarChart3,
-  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign
+  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign, ArrowUp, ArrowDown, Minus
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,8 @@ import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
   totalPaginasNegro: number; totalPaginasColor: number; lecturasHoy: number;
+  paginasMesActual: number; paginasMesAnterior: number;
+  lecturasMes: number; lecturasMesAnterior: number;
 }
 
 interface TopPrinter {
@@ -65,6 +67,8 @@ export default function Dashboard() {
   const [stats, setStats] = useState<Stats>({
     total: 0, activas: 0, enReparacion: 0, inactivas: 0,
     totalPaginasNegro: 0, totalPaginasColor: 0, lecturasHoy: 0,
+    paginasMesActual: 0, paginasMesAnterior: 0,
+    lecturasMes: 0, lecturasMesAnterior: 0,
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
