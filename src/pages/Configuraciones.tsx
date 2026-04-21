@@ -407,6 +407,9 @@ export default function Configuraciones() {
             </CardContent>
           </Card>
         </div>
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
       </div>
     </DashboardLayout>
   );
