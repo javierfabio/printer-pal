@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, X, ChevronRight, Package } from 'lucide-react';
+import { AlertTriangle, X, ChevronRight, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -20,6 +20,7 @@ export function PartsAlertBanner({
   const navigate = useNavigate();
   const { alerts, criticalAlerts, warningAlerts, loading, hasAnyAlerts } = usePartsAlerts();
   const [dismissed, setDismissed] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
 
   if (loading || !hasAnyAlerts || dismissed) {
     return null;
@@ -45,6 +46,15 @@ export function PartsAlertBanner({
         onClick={() => setDismissed(true)}
       >
         <X className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="absolute top-2 right-10 h-6 w-6"
+        onClick={() => setCollapsed(c => !c)}
+        aria-label={collapsed ? 'Expandir' : 'Colapsar'}
+      >
+        {collapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
       </Button>
 
       <div className="flex items-start gap-3">
@@ -76,7 +86,7 @@ export function PartsAlertBanner({
             )}
           </div>
 
-          {showDetails && (
+          {showDetails && !collapsed && (
             <div className="space-y-2 mt-3">
               {displayAlerts.map((alert) => (
                 <div 
@@ -117,7 +127,7 @@ export function PartsAlertBanner({
             </div>
           )}
 
-          <Button
+          {!collapsed && <Button
             variant="link"
             size="sm"
             className={cn(
@@ -128,7 +138,7 @@ export function PartsAlertBanner({
           >
             Ver gestión de piezas
             <ChevronRight className="h-4 w-4 ml-1" />
-          </Button>
+          </Button>}
         </div>
       </div>
     </div>

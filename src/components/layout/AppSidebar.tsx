@@ -7,6 +7,9 @@ import { Button } from '@/components/ui/button';
 import { useState, useEffect } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { getSystemConfig } from '@/lib/systemConfig';
+import { Badge } from '@/components/ui/badge';
+import { usePartsAlerts } from '@/hooks/usePartsAlerts';
+import { supabase } from '@/integrations/supabase/client';
 
 interface MenuItem {
   title: string;
@@ -35,11 +38,30 @@ export function AppSidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(true);
   const [systemName, setSystemName] = useState('PrintControl');
+  const { alerts } = usePartsAlerts();
+  const [repairCount, setRepairCount] = useState(0);
 
   useEffect(() => {
     const config = getSystemConfig();
     setSystemName(config.systemName || 'PrintControl');
   }, []);
+
+  useEffect(() => {
+    const loadRepairs = async () => {
+      const { count } = await supabase
+        .from('repair_history')
+        .select('id', { count: 'exact', head: true })
+        .eq('estado', 'en_reparacion');
+      setRepairCount(count || 0);
+    };
+    loadRepairs();
+  }, [location.pathname]);
+
+  const badgeFor = (url: string): number => {
+    if (url === '/dashboard/piezas') return alerts.length;
+    if (url === '/dashboard/impresoras') return repairCount;
+    return 0;
+  };
 
   const isAdmin = role === 'admin';
   const visibleItems = menuItems.filter(item => !item.adminOnly || isAdmin);
@@ -76,14 +98,27 @@ export function AppSidebar() {
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {visibleItems.map((item) => {
             const isActive = location.pathname === item.url;
+            const count = badgeFor(item.url);
             const linkContent = (
               <NavLink key={item.url} to={item.url} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200", isActive ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg shadow-sidebar-primary/20" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground", collapsed && "justify-center px-2")}>
-                <item.icon className="w-5 h-5 flex-shrink-0" />
-                {!collapsed && <span className="font-medium">{item.title}</span>}
+                <div className="relative flex-shrink-0">
+                  <item.icon className="w-5 h-5" />
+                  {count > 0 && collapsed && (
+                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+                      {count > 9 ? '9+' : count}
+                    </span>
+                  )}
+                </div>
+                {!collapsed && <span className="font-medium flex-1">{item.title}</span>}
+                {!collapsed && count > 0 && (
+                  <Badge variant="destructive" className="ml-auto h-5 min-w-[20px] px-1.5 text-[10px]">
+                    {count > 99 ? '99+' : count}
+                  </Badge>
+                )}
               </NavLink>
             );
             if (collapsed) {
-              return <Tooltip key={item.url}><TooltipTrigger asChild>{linkContent}</TooltipTrigger><TooltipContent side="right" className="bg-popover text-popover-foreground">{item.title}</TooltipContent></Tooltip>;
+              return <Tooltip key={item.url}><TooltipTrigger asChild>{linkContent}</TooltipTrigger><TooltipContent side="right" className="bg-popover text-popover-foreground">{item.title}{count > 0 && ` (${count})`}</TooltipContent></Tooltip>;
             }
             return linkContent;
           })}
