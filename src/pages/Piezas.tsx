@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { EditPiezaDialog } from '@/components/piezas/EditPiezaDialog';
 import { EditConfiguracionDialog } from '@/components/piezas/EditConfiguracionDialog';
+import { StockTab } from '@/components/stock/StockTab';
 
 type TipoPieza = 'toner_negro' | 'toner_color' | 'fusor' | 'unidad_imagen' | 'malla' | 'transfer_belt' | 'rodillo' | 'otro';
 
@@ -763,6 +764,10 @@ export default function Piezas() {
               <Package className="w-4 h-4" />
               Catálogo por Modelo
             </TabsTrigger>
+            <TabsTrigger value="stock" className="gap-2">
+              <Package className="w-4 h-4" />
+              Stock
+            </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="configuracion" className="gap-2">
                 <Settings className="w-4 h-4" />
@@ -1038,6 +1043,14 @@ export default function Piezas() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="stock">
+            <StockTab
+              piezas={catalogo.map(c => ({ id: c.id, nombre_pieza: c.nombre_pieza, tipo_pieza: c.tipo_pieza, stock_actual: c.stock_actual }))}
+              impresoras={impresoras.map(i => ({ id: i.id, nombre: i.nombre, serie: i.serie }))}
+              onChange={fetchData}
+            />
           </TabsContent>
 
           {isAdmin && (
