@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { EditPiezaDialog } from '@/components/piezas/EditPiezaDialog';
 import { EditConfiguracionDialog } from '@/components/piezas/EditConfiguracionDialog';
+import { StockTab } from '@/components/stock/StockTab';
 
 type TipoPieza = 'toner_negro' | 'toner_color' | 'fusor' | 'unidad_imagen' | 'malla' | 'transfer_belt' | 'rodillo' | 'otro';
 
