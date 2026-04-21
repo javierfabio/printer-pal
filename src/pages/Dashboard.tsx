@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { usePartsAlerts, TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
+import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
@@ -39,7 +40,22 @@ interface RepairOpen {
 
 interface Sector { id: string; nombre: string; }
 interface Filial { id: string; nombre: string; }
-interface PrinterFull { id: string; sector_id: string | null; filial_id: string | null; }
+interface PrinterFull {
+  id: string;
+  nombre: string;
+  modelo: string;
+  sector_id: string | null;
+  filial_id: string | null;
+  contador_negro_actual: number | null;
+  contador_color_actual: number | null;
+}
+interface ReadingMin {
+  id: string;
+  impresora_id: string;
+  fecha_lectura: string;
+  contador_negro: number | null;
+  contador_color: number | null;
+}
 interface NoReadingPrinter { id: string; nombre: string; modelo: string; serie: string; filial_id: string | null; sector_id: string | null; }
 
 export default function Dashboard() {
@@ -56,6 +72,7 @@ export default function Dashboard() {
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [printers, setPrinters] = useState<PrinterFull[]>([]);
+  const [chartReadings, setChartReadings] = useState<ReadingMin[]>([]);
   const [noReadingPrinters, setNoReadingPrinters] = useState<NoReadingPrinter[]>([]);
   const [showNoReadingPanel, setShowNoReadingPanel] = useState(false);
   const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
