@@ -1045,9 +1045,6 @@ export default function Piezas() {
             </Card>
           </TabsContent>
 
-          {isAdmin && (
-            <TabsContent value="configuracion">
-
           <TabsContent value="stock">
             <StockTab
               piezas={catalogo.map(c => ({ id: c.id, nombre_pieza: c.nombre_pieza, tipo_pieza: c.tipo_pieza, stock_actual: c.stock_actual }))}
@@ -1056,9 +1053,8 @@ export default function Piezas() {
             />
           </TabsContent>
 
-          {/* placeholder */}
-          {isAdmin && false && (
-            <TabsContent value="configuracion-dummy">
+          {isAdmin && (
+            <TabsContent value="configuracion">
               <Card>
                 <CardHeader>
                   <div className="flex justify-between items-center">
