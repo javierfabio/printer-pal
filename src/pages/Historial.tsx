@@ -345,7 +345,7 @@ export default function Historial() {
                         <TableHead className="text-right">Negro Act.</TableHead>
                         <TableHead className="text-right">Color Ant.</TableHead>
                         <TableHead className="text-right">Color Act.</TableHead>
-                        <TableHead className="text-right">Consumo</TableHead>
+                        <TableHead className="text-right">Páginas del período</TableHead>
                         <TableHead>Registrado Por</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -375,8 +375,17 @@ export default function Historial() {
                             <TableCell className="text-right font-mono font-medium">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
                             <TableCell className="text-right">
                               {consumoTotal > 0 ? (
-                                <Badge variant="secondary" className="font-mono">{consumoTotal.toLocaleString()}</Badge>
-                              ) : '-'}
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <Badge variant="secondary" className="font-mono">{consumoTotal.toLocaleString()}</Badge>
+                                  {(consumoN > 0 || consumoC > 0) && (
+                                    <span className="text-[10px] text-muted-foreground font-mono">
+                                      {consumoN > 0 && <>B/N: {consumoN.toLocaleString()}</>}
+                                      {consumoN > 0 && consumoC > 0 && ' · '}
+                                      {consumoC > 0 && <>Color: {consumoC.toLocaleString()}</>}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : <span className="text-muted-foreground">—</span>}
                             </TableCell>
                             <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(l.registrado_por)}</span></div></TableCell>
                           </TableRow>
