@@ -97,6 +97,16 @@ export default function Dashboard() {
         supabase.from('precios_modelo').select('modelo'),
       ]);
 
+      // Lecturas para gráfico mensual (últimos 6 meses)
+      const sixMonthsAgo = new Date();
+      sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+      const chartReadingsResp = await supabase
+        .from('lecturas_contadores')
+        .select('id, impresora_id, fecha_lectura, contador_negro, contador_color')
+        .gte('fecha_lectura', sixMonthsAgo.toISOString())
+        .order('fecha_lectura', { ascending: true });
+      if (chartReadingsResp.data) setChartReadings(chartReadingsResp.data as ReadingMin[]);
+
       if (repairsResp.data) setOpenRepairs(repairsResp.data as any);
 
       if (secResp.data) setSectores(secResp.data);
@@ -104,7 +114,15 @@ export default function Dashboard() {
 
       if (printersResp.data) {
         const p = printersResp.data;
-        setPrinters(p.map(x => ({ id: x.id, sector_id: x.sector_id, filial_id: x.filial_id })));
+        setPrinters(p.map(x => ({
+          id: x.id,
+          nombre: x.nombre,
+          modelo: x.modelo,
+          sector_id: x.sector_id,
+          filial_id: x.filial_id,
+          contador_negro_actual: x.contador_negro_actual,
+          contador_color_actual: x.contador_color_actual,
+        })));
         // Impresoras sin lecturas
         const idsConLectura = new Set((allReadingsResp.data || []).map((r: any) => r.impresora_id));
         const sinLectura = p
