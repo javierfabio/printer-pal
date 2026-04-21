@@ -371,6 +371,75 @@ export type Database = {
           },
         ]
       }
+      movimientos_stock: {
+        Row: {
+          cantidad: number
+          created_at: string
+          fecha_movimiento: string
+          id: string
+          impresora_id: string | null
+          moneda: string
+          motivo: string | null
+          notas: string | null
+          numero_factura: string | null
+          pieza_catalogo_id: string
+          precio_unitario: number | null
+          proveedor: string | null
+          registrado_por: string
+          tipo_movimiento: Database["public"]["Enums"]["movimiento_stock_tipo"]
+          updated_at: string
+        }
+        Insert: {
+          cantidad: number
+          created_at?: string
+          fecha_movimiento?: string
+          id?: string
+          impresora_id?: string | null
+          moneda?: string
+          motivo?: string | null
+          notas?: string | null
+          numero_factura?: string | null
+          pieza_catalogo_id: string
+          precio_unitario?: number | null
+          proveedor?: string | null
+          registrado_por: string
+          tipo_movimiento: Database["public"]["Enums"]["movimiento_stock_tipo"]
+          updated_at?: string
+        }
+        Update: {
+          cantidad?: number
+          created_at?: string
+          fecha_movimiento?: string
+          id?: string
+          impresora_id?: string | null
+          moneda?: string
+          motivo?: string | null
+          notas?: string | null
+          numero_factura?: string | null
+          pieza_catalogo_id?: string
+          precio_unitario?: number | null
+          proveedor?: string | null
+          registrado_por?: string
+          tipo_movimiento?: Database["public"]["Enums"]["movimiento_stock_tipo"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movimientos_stock_impresora_id_fkey"
+            columns: ["impresora_id"]
+            isOneToOne: false
+            referencedRelation: "impresoras"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movimientos_stock_pieza_catalogo_id_fkey"
+            columns: ["pieza_catalogo_id"]
+            isOneToOne: false
+            referencedRelation: "piezas_catalogo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       piezas_catalogo: {
         Row: {
           activo: boolean
@@ -649,6 +718,7 @@ export type Database = {
       consumo_tipo: "tinta" | "toner"
       impresion_tipo: "monocromatico" | "color"
       impresora_estado: "activa" | "inactiva" | "en_reparacion" | "baja"
+      movimiento_stock_tipo: "entrada" | "salida"
       repair_status: "en_reparacion" | "resuelta" | "irreparable"
       tipo_pieza:
         | "toner_negro"
@@ -790,6 +860,7 @@ export const Constants = {
       consumo_tipo: ["tinta", "toner"],
       impresion_tipo: ["monocromatico", "color"],
       impresora_estado: ["activa", "inactiva", "en_reparacion", "baja"],
+      movimiento_stock_tipo: ["entrada", "salida"],
       repair_status: ["en_reparacion", "resuelta", "irreparable"],
       tipo_pieza: [
         "toner_negro",
