@@ -20,6 +20,7 @@ interface Stats {
   totalPaginasNegro: number; totalPaginasColor: number; lecturasHoy: number;
   paginasMesActual: number; paginasMesAnterior: number;
   lecturasMes: number; lecturasMesAnterior: number;
+  sinLecturaMes: number;
 }
 
 interface TopPrinter {
@@ -69,6 +70,7 @@ export default function Dashboard() {
     totalPaginasNegro: 0, totalPaginasColor: 0, lecturasHoy: 0,
     paginasMesActual: 0, paginasMesAnterior: 0,
     lecturasMes: 0, lecturasMesAnterior: 0,
+    sinLecturaMes: 0,
   });
   const [topPrinters, setTopPrinters] = useState<TopPrinter[]>([]);
   const [recentReadings, setRecentReadings] = useState<RecentReading[]>([]);
@@ -129,6 +131,10 @@ export default function Dashboard() {
         })));
         // Impresoras sin lecturas
         const idsConLectura = new Set((allReadingsResp.data || []).map((r: any) => r.impresora_id));
+        const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+        const idsConLecturaMes = new Set((chartReadingsResp.data || [])
+          .filter((r: any) => new Date(r.fecha_lectura) >= currentMonthStart)
+          .map((r: any) => r.impresora_id));
         const sinLectura = p
           .filter(x => !idsConLectura.has(x.id) && x.estado !== 'baja')
           .map(x => ({ id: x.id, nombre: x.nombre, modelo: x.modelo, serie: x.serie, filial_id: x.filial_id, sector_id: x.sector_id }));
@@ -152,6 +158,7 @@ export default function Dashboard() {
           lecturasHoy: 0,
           paginasMesActual: 0, paginasMesAnterior: 0,
           lecturasMes: 0, lecturasMesAnterior: 0,
+          sinLecturaMes: p.filter(x => x.estado === 'activa' && !idsConLecturaMes.has(x.id)).length,
         });
         const sorted = [...p].map(x => ({ ...x, totalPages: (x.contador_negro_actual || 0) + (x.contador_color_actual || 0) }))
           .sort((a, b) => b.totalPages - a.totalPages).slice(0, 5);
@@ -217,10 +224,11 @@ export default function Dashboard() {
   const readingsTrend = trendOf(stats.lecturasMes, stats.lecturasMesAnterior);
 
   const statCards = [
-    { title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
-    { title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
-    { title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
-    { title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
+     { title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
+     { title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
+     { title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
+     { title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
+     { title: 'Sin lectura este mes', value: stats.sinLecturaMes, subtitle: `de ${stats.activas} impresoras activas`, icon: FileWarning, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/registro-uso?tab=sin-actividad'), trend: null, trendLabel: '' },
   ];
 
   return (
@@ -234,7 +242,7 @@ export default function Dashboard() {
           <Button onClick={() => navigate('/dashboard/registro-uso')} className="gap-2"><TrendingUp className="w-4 h-4" />Registrar Lectura</Button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           {statCards.map((stat, index) => (
             <Card key={stat.title} className={cn("hover-lift animate-fade-in transition-shadow hover:shadow-lg", stat.onClick && "cursor-pointer")} style={{ animationDelay: `${index * 100}ms` }} onClick={stat.onClick}>
               <CardContent className="pt-6">
@@ -318,10 +326,10 @@ export default function Dashboard() {
 
         {/* Alerta: impresoras sin lecturas */}
         {noReadingPrinters.length > 0 && (
-          <Card className="border-orange-500/50 bg-orange-500/5 animate-fade-in">
+          <Card className="border-warning/50 bg-warning/5 animate-fade-in">
             <CardHeader className="pb-3 cursor-pointer" onClick={() => setShowNoReadingPanel(v => !v)}>
               <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2 text-orange-500">
+                <CardTitle className="flex items-center gap-2 text-warning">
                   <FileWarning className="w-5 h-5" />
                   {noReadingPrinters.length} impresora{noReadingPrinters.length !== 1 ? 's' : ''} sin lecturas registradas
                 </CardTitle>
@@ -337,7 +345,7 @@ export default function Dashboard() {
                     if (items.length === 0) return null;
                     return (
                       <div key={f.id} className="mb-3">
-                        <p className="text-xs font-semibold text-orange-500 mb-1">{f.nombre} ({items.length})</p>
+                        <p className="text-xs font-semibold text-warning mb-1">{f.nombre} ({items.length})</p>
                         <div className="space-y-1 ml-2">
                           {items.map(p => (
                             <div key={p.id} className="flex items-center justify-between p-2 rounded bg-background/50 border text-sm">

@@ -172,9 +172,9 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
       case 'cambio':
         return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">Cambio</Badge>;
       case 'lectura':
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">Lectura</Badge>;
+        return <Badge variant="outline" className="bg-info/10 text-info border-info/20 text-xs">Lectura</Badge>;
       case 'pieza':
-        return <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20 text-xs">Pieza</Badge>;
+        return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">Pieza</Badge>;
     }
   };
 
@@ -212,8 +212,8 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
                       <div className={cn(
                         "absolute -left-6 top-1 w-5 h-5 rounded-full border-2 border-background flex items-center justify-center",
                         event.type === 'cambio' && "bg-primary text-primary-foreground",
-                        event.type === 'lectura' && "bg-blue-500 text-white",
-                        event.type === 'pieza' && "bg-orange-500 text-white",
+                        event.type === 'lectura' && "bg-info text-info-foreground",
+                        event.type === 'pieza' && "bg-warning text-warning-foreground",
                       )}>
                         {getTypeIcon(event.type)}
                       </div>

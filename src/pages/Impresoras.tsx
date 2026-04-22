@@ -16,7 +16,6 @@ import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
 import { RepairOutDialog } from '@/components/impresoras/RepairOutDialog';
 import { RepairReturnDialog } from '@/components/impresoras/RepairReturnDialog';
-import { PrinterUsageOverview } from '@/components/impresoras/PrinterUsageOverview';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -86,8 +85,7 @@ export default function Impresoras() {
   const [repairOutOpen, setRepairOutOpen] = useState(false);
   const [repairReturnOpen, setRepairReturnOpen] = useState(false);
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
-  const [printerReadings, setPrinterReadings] = useState<Record<string, Array<{ id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; notas: string | null }>>>({});
-  
+
   const [formData, setFormData] = useState({
     serie: '',
     nombre: '',
