@@ -42,6 +42,7 @@ interface Impresora {
   serie: string;
   nombre: string;
   modelo: string;
+  fecha_registro: string;
   tipo_consumo: string;
   tipo_impresion: string;
   contador_negro_actual: number;
