@@ -17,6 +17,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
+import { RecentReadingsPeriodTable } from '@/components/informes/RecentReadingsPeriodTable';
 
 interface Impresora { id: string; nombre: string; serie: string; modelo: string; tipo_impresion: string; contador_negro_actual: number; contador_color_actual: number; contador_negro_inicial: number; contador_color_inicial: number; sector_id: string | null; filial_id: string | null; }
 interface Sector { id: string; nombre: string; }
@@ -366,28 +367,11 @@ export default function Informes() {
               </Card>
             )}
 
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader><CardTitle className="flex items-center gap-2"><User className="w-5 h-5 text-primary" />Historial de Cargas Recientes</CardTitle></CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader><TableRow><TableHead>Fecha/Hora</TableHead><TableHead>Impresora</TableHead><TableHead className="text-right">Negro</TableHead><TableHead className="text-right">Color</TableHead><TableHead>Registrado Por</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {lecturas.filter(l => filteredPrinterIds.has(l.impresora_id)).slice(0, 20).map(l => (
-                        <TableRow key={l.id}>
-                          <TableCell className="whitespace-nowrap text-sm">{new Date(l.fecha_lectura).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
-                          <TableCell className="font-medium">{l.impresoras?.nombre || '-'}</TableCell>
-                          <TableCell className="text-right font-mono">{l.contador_negro?.toLocaleString() ?? '-'}</TableCell>
-                          <TableCell className="text-right font-mono">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
-                          <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(l.registrado_por)}</span></div></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+            <RecentReadingsPeriodTable
+              lecturas={lecturas}
+              filteredPrinterIds={filteredPrinterIds}
+              getProfileName={getProfileName}
+            />
           </>
         )}
       </div>

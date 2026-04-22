@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
+import { useSearchParams } from 'react-router-dom';
 
 type TipoConsumo = 'tinta' | 'toner';
 type TipoImpresion = 'monocromatico' | 'color';
@@ -67,6 +68,7 @@ const impresoraSchema = z.object({
 export default function Impresoras() {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
@@ -83,7 +85,7 @@ export default function Impresoras() {
   const [repairOutOpen, setRepairOutOpen] = useState(false);
   const [repairReturnOpen, setRepairReturnOpen] = useState(false);
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
-  
+
   const [formData, setFormData] = useState({
     serie: '',
     nombre: '',
@@ -106,6 +108,12 @@ export default function Impresoras() {
   const [newFilialName, setNewFilialName] = useState('');
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    const filialFromQuery = searchParams.get('filial');
+    if (!filialFromQuery) return;
+    setSearch('');
+  }, [searchParams]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -262,14 +270,18 @@ export default function Impresoras() {
 
   const openHistorial = (printer: Impresora) => { setSelectedPrinterId(printer.id); setSelectedPrinterName(printer.nombre); setHistorialOpen(true); };
 
-  const filteredImpresoras = impresoras.filter(imp => {
-    const matchesSearch =
-      imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      imp.serie.toLowerCase().includes(search.toLowerCase()) ||
-      imp.modelo.toLowerCase().includes(search.toLowerCase());
-    const matchesSinLectura = !filterSinLectura || printersSinLectura.has(imp.id);
-    return matchesSearch && matchesSinLectura;
-  });
+  const filteredImpresoras = useMemo(() => {
+    const filialFromQuery = searchParams.get('filial');
+    return impresoras.filter(imp => {
+      const matchesSearch =
+        imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
+        imp.serie.toLowerCase().includes(search.toLowerCase()) ||
+        imp.modelo.toLowerCase().includes(search.toLowerCase());
+      const matchesSinLectura = !filterSinLectura || printersSinLectura.has(imp.id);
+      const matchesFilial = !filialFromQuery || imp.filial_id === filialFromQuery;
+      return matchesSearch && matchesSinLectura && matchesFilial;
+    });
+  }, [filterSinLectura, impresoras, printersSinLectura, search, searchParams]);
 
   const getStatusBadge = (estado: EstadoImpresora) => {
     const statusMap: Record<EstadoImpresora, { label: string; className: string }> = {
@@ -433,7 +445,7 @@ export default function Impresoras() {
               <Button
                 variant={filterSinLectura ? 'default' : 'outline'}
                 onClick={() => setFilterSinLectura(v => !v)}
-                className={cn("gap-2 flex-shrink-0", filterSinLectura && "bg-orange-500 hover:bg-orange-500/90 text-white")}
+                className={cn("gap-2 flex-shrink-0", filterSinLectura && "bg-warning hover:bg-warning/90 text-warning-foreground")}
               >
                 <FileWarning className="w-4 h-4" />
                 Sin lecturas ({printersSinLectura.size})
@@ -477,7 +489,7 @@ export default function Impresoras() {
                           <div className="flex items-center gap-2">
                             <span>{imp.nombre}</span>
                             {printersSinLectura.has(imp.id) && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-orange-500/15 text-orange-500 border border-orange-500/30 flex items-center gap-1">
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
                                 <FileWarning className="w-3 h-3" />Sin registro
                               </span>
                             )}

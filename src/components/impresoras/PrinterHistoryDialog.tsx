@@ -11,6 +11,7 @@ import { Loader2, History, FileText, Wrench, Calendar, User, MapPin, Building2, 
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { RepairTimeline } from './RepairTimeline';
+import { PrinterUsageOverview } from './PrinterUsageOverview';
 
 interface TimelineEvent {
   id: string;
@@ -44,6 +45,8 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
   const [locationEvents, setLocationEvents] = useState<LocationEvent[]>([]);
   const [sectorMap, setSectorMap] = useState<Record<string, string>>({});
   const [filialMap, setFilialMap] = useState<Record<string, string>>({});
+  const [printer, setPrinter] = useState<any | null>(null);
+  const [rawReadings, setRawReadings] = useState<any[]>([]);
 
   useEffect(() => {
     if (open && printerId) {
@@ -54,7 +57,12 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
   const fetchAllHistory = async (id: string) => {
     setLoading(true);
 
-    const [cambiosResp, lecturasResp, piezasResp, sectoresResp, filialesResp] = await Promise.all([
+    const [printerResp, cambiosResp, lecturasResp, piezasResp, sectoresResp, filialesResp] = await Promise.all([
+      supabase
+        .from('impresoras')
+        .select('id, nombre, modelo, fecha_registro, contador_negro_inicial, contador_color_inicial, contador_negro_actual, contador_color_actual')
+        .eq('id', id)
+        .single(),
       supabase
         .from('historial_cambios')
         .select('*, profiles:usuario_id(email, full_name)')
@@ -83,6 +91,9 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
     const fMap: Record<string, string> = {};
     (filialesResp.data || []).forEach((f: any) => { fMap[f.id] = f.nombre; });
     setFilialMap(fMap);
+
+    setPrinter(printerResp.data || null);
+    setRawReadings((lecturasResp.data || []) as any[]);
 
     const timeline: TimelineEvent[] = [];
     const locations: LocationEvent[] = [];
@@ -161,9 +172,9 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
       case 'cambio':
         return <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 text-xs">Cambio</Badge>;
       case 'lectura':
-        return <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs">Lectura</Badge>;
+        return <Badge variant="outline" className="bg-info/10 text-info border-info/20 text-xs">Lectura</Badge>;
       case 'pieza':
-        return <Badge variant="outline" className="bg-orange-500/10 text-orange-600 border-orange-500/20 text-xs">Pieza</Badge>;
+        return <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20 text-xs">Pieza</Badge>;
     }
   };
 
@@ -186,6 +197,7 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
 
           <TabsContent value="general">
             <div className="overflow-y-auto max-h-[60vh] pr-1 mt-2">
+              <PrinterUsageOverview printer={printer} readings={rawReadings} />
               {loading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -200,8 +212,8 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
                       <div className={cn(
                         "absolute -left-6 top-1 w-5 h-5 rounded-full border-2 border-background flex items-center justify-center",
                         event.type === 'cambio' && "bg-primary text-primary-foreground",
-                        event.type === 'lectura' && "bg-blue-500 text-white",
-                        event.type === 'pieza' && "bg-orange-500 text-white",
+                        event.type === 'lectura' && "bg-info text-info-foreground",
+                        event.type === 'pieza' && "bg-warning text-warning-foreground",
                       )}>
                         {getTypeIcon(event.type)}
                       </div>

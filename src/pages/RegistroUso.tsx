@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   Plus, 
   Loader2, 
@@ -33,12 +34,15 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useSearchParams } from 'react-router-dom';
+import { InactivityPanel } from '@/components/registro/InactivityPanel';
 
 interface Impresora {
   id: string;
   serie: string;
   nombre: string;
   modelo: string;
+  fecha_registro: string;
   tipo_consumo: string;
   tipo_impresion: string;
   contador_negro_actual: number;
@@ -97,6 +101,7 @@ const HIGH_CONSUMPTION_THRESHOLD = 5000;
 export default function RegistroUso() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [lecturas, setLecturas] = useState<LecturaContador[]>([]);
   const [piezasPrinter, setPiezasPrinter] = useState<PiezaImpresora[]>([]);
@@ -116,10 +121,22 @@ export default function RegistroUso() {
   const [filterFilial, setFilterFilial] = useState<string>('all');
   const [filterSector, setFilterSector] = useState<string>('all');
   const [filterModelo, setFilterModelo] = useState<string>('all');
+  const activeTab = searchParams.get('tab') === 'sin-actividad' ? 'sin-actividad' : 'lecturas';
 
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    const printerId = searchParams.get('impresora');
+    if (!printerId || impresoras.length === 0) return;
+
+    const exists = impresoras.some((printer) => printer.id === printerId);
+    if (!exists) return;
+
+    setDialogOpen(true);
+    setSelectedPrinter(printerId);
+  }, [impresoras, searchParams]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -201,6 +218,41 @@ export default function RegistroUso() {
   }, [lecturas, filterFilial, filterSector, filterModelo]);
 
   const selectedPrinterData = impresoras.find(p => p.id === selectedPrinter);
+
+  const lecturasConPeriodo = useMemo(() => {
+    const grouped = new Map<string, LecturaContador[]>();
+
+    filteredLecturas.forEach((lectura) => {
+      const list = grouped.get(lectura.impresora_id) || [];
+      list.push(lectura);
+      grouped.set(lectura.impresora_id, list);
+    });
+
+    const rows: Array<LecturaContador & { periodoNegro: number | null; periodoColor: number | null; periodoTotal: number | null }> = [];
+
+    grouped.forEach((printerReadings) => {
+      const asc = [...printerReadings].sort((a, b) => new Date(a.fecha_lectura).getTime() - new Date(b.fecha_lectura).getTime());
+      asc.forEach((lectura, index) => {
+        if (index === 0) {
+          rows.push({ ...lectura, periodoNegro: null, periodoColor: null, periodoTotal: null });
+          return;
+        }
+
+        const previous = asc[index - 1];
+        const periodoNegro = Math.max(0, (lectura.contador_negro || 0) - (previous.contador_negro || 0));
+        const periodoColor = Math.max(0, (lectura.contador_color || 0) - (previous.contador_color || 0));
+
+        rows.push({
+          ...lectura,
+          periodoNegro,
+          periodoColor,
+          periodoTotal: periodoNegro + periodoColor,
+        });
+      });
+    });
+
+    return rows.sort((a, b) => new Date(b.fecha_lectura).getTime() - new Date(a.fecha_lectura).getTime());
+  }, [filteredLecturas]);
 
   const paginasNegro = useMemo(() => {
     if (!selectedPrinterData || !contadorNegro) return 0;
@@ -318,7 +370,7 @@ export default function RegistroUso() {
     const doc = new jsPDF('landscape');
     const startY = addPDFHeader(doc, 'Registro de Uso', 'Lecturas de Contadores');
 
-    const tableData = filteredLecturas.map(l => [
+    const tableData = lecturasConPeriodo.map(l => [
       new Date(l.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' }),
       new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
       getFilialName(l.impresoras?.filial_id || null),
@@ -328,12 +380,15 @@ export default function RegistroUso() {
       l.impresoras?.serie || '-',
       l.contador_negro?.toLocaleString() ?? '-',
       l.contador_color?.toLocaleString() ?? '-',
+      l.periodoNegro === null ? 'Primera lectura' : l.periodoNegro.toLocaleString(),
+      l.periodoColor === null ? 'Primera lectura' : l.periodoColor.toLocaleString(),
+      l.periodoTotal === null ? 'Primera lectura' : l.periodoTotal.toLocaleString(),
       l.notas || '-',
     ]);
 
     autoTable(doc, {
       startY,
-      head: [['Fecha', 'Hora', 'Filial', 'Sector', 'Impresora', 'Modelo', 'Serie', 'Negro', 'Color', 'Notas']],
+      head: [['Fecha', 'Hora', 'Filial', 'Sector', 'Impresora', 'Modelo', 'Serie', 'Negro', 'Color', 'B/N Período', 'Color Período', 'Total Período', 'Notas']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: [59, 130, 246], textColor: 255 },
@@ -346,7 +401,7 @@ export default function RegistroUso() {
   };
 
   const exportLecturasCSV = () => {
-    const data = filteredLecturas.map(l => ({
+    const data = lecturasConPeriodo.map(l => ({
       Fecha: new Date(l.fecha_lectura).toLocaleDateString('es'),
       Hora: new Date(l.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
       Filial: getFilialName(l.impresoras?.filial_id || null),
@@ -356,6 +411,9 @@ export default function RegistroUso() {
       Serie: l.impresoras?.serie || '',
       ContadorNegro: l.contador_negro ?? '',
       ContadorColor: l.contador_color ?? '',
+      BNPeriodo: l.periodoNegro ?? 'Primera lectura',
+      ColorPeriodo: l.periodoColor ?? 'Primera lectura',
+      TotalPeriodo: l.periodoTotal ?? 'Primera lectura',
       Notas: l.notas || '',
     }));
     if (data.length === 0) return;
@@ -674,66 +732,104 @@ export default function RegistroUso() {
           </CardContent>
         </Card>
 
-        {/* Recent Readings */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              Historial Rápido de Lecturas
-            </CardTitle>
-            <CardDescription>Últimas lecturas registradas en el sistema</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-            ) : filteredLecturas.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                <p className="text-lg font-medium">No hay lecturas registradas</p>
-                <p className="text-sm">Comienza registrando la primera lectura de contadores</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Fecha/Hora</TableHead>
-                      <TableHead>Filial</TableHead>
-                      <TableHead>Sector</TableHead>
-                      <TableHead>Impresora</TableHead>
-                      <TableHead>Modelo</TableHead>
-                      <TableHead>Serie</TableHead>
-                      <TableHead className="text-right">Negro</TableHead>
-                      <TableHead className="text-right">Color</TableHead>
-                      <TableHead>Notas</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredLecturas.slice(0, 20).map((lectura) => (
-                      <TableRow key={lectura.id} className="hover:bg-muted/50">
-                        <TableCell className="whitespace-nowrap">
-                          {new Date(lectura.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          <br />
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(lectura.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{getFilialName(lectura.impresoras?.filial_id || null)}</TableCell>
-                        <TableCell className="text-muted-foreground">{getSectorName(lectura.impresoras?.sector_id || null)}</TableCell>
-                        <TableCell className="font-medium">{lectura.impresoras?.nombre || '-'}</TableCell>
-                        <TableCell>{lectura.impresoras?.modelo || '-'}</TableCell>
-                        <TableCell className="font-mono text-sm text-muted-foreground">{lectura.impresoras?.serie || '-'}</TableCell>
-                        <TableCell className="text-right font-medium">{lectura.contador_negro?.toLocaleString() ?? '-'}</TableCell>
-                        <TableCell className="text-right font-medium">{lectura.contador_color?.toLocaleString() ?? '-'}</TableCell>
-                        <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{lectura.notas || '-'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <Tabs value={activeTab} onValueChange={(value) => setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          if (value === 'sin-actividad') next.set('tab', 'sin-actividad');
+          else next.delete('tab');
+          return next;
+        })} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 md:w-[420px]">
+            <TabsTrigger value="lecturas">Historial de lecturas</TabsTrigger>
+            <TabsTrigger value="sin-actividad">Impresoras sin Actividad</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="lecturas">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Historial Rápido de Lecturas
+                </CardTitle>
+                <CardDescription>Incluye páginas del período por impresora entre lecturas consecutivas</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="flex justify-center py-8"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+                ) : lecturasConPeriodo.length === 0 ? (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <FileText className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                    <p className="text-lg font-medium">No hay lecturas registradas</p>
+                    <p className="text-sm">Comienza registrando la primera lectura de contadores</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Fecha/Hora</TableHead>
+                          <TableHead>Filial</TableHead>
+                          <TableHead>Sector</TableHead>
+                          <TableHead>Impresora</TableHead>
+                          <TableHead>Modelo</TableHead>
+                          <TableHead>Serie</TableHead>
+                          <TableHead className="text-right">Negro</TableHead>
+                          <TableHead className="text-right">Color</TableHead>
+                          <TableHead className="text-right">B/N Período</TableHead>
+                          <TableHead className="text-right">Color Período</TableHead>
+                          <TableHead className="text-right">Total Período</TableHead>
+                          <TableHead>Notas</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {lecturasConPeriodo.slice(0, 20).map((lectura) => (
+                          <TableRow key={lectura.id} className="hover:bg-muted/50">
+                            <TableCell className="whitespace-nowrap">
+                              {new Date(lectura.fecha_lectura).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              <br />
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(lectura.fecha_lectura).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-muted-foreground">{getFilialName(lectura.impresoras?.filial_id || null)}</TableCell>
+                            <TableCell className="text-muted-foreground">{getSectorName(lectura.impresoras?.sector_id || null)}</TableCell>
+                            <TableCell className="font-medium">{lectura.impresoras?.nombre || '-'}</TableCell>
+                            <TableCell>{lectura.impresoras?.modelo || '-'}</TableCell>
+                            <TableCell className="font-mono text-sm text-muted-foreground">{lectura.impresoras?.serie || '-'}</TableCell>
+                            <TableCell className="text-right font-medium">{lectura.contador_negro?.toLocaleString() ?? '-'}</TableCell>
+                            <TableCell className="text-right font-medium">{lectura.contador_color?.toLocaleString() ?? '-'}</TableCell>
+                            {lectura.periodoTotal === null ? (
+                              <TableCell colSpan={3} className="text-right text-muted-foreground">Primera lectura</TableCell>
+                            ) : (
+                              <>
+                                <TableCell className="text-right text-info">+{lectura.periodoNegro?.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-success">+{lectura.periodoColor?.toLocaleString()}</TableCell>
+                                <TableCell className="text-right font-semibold">+{lectura.periodoTotal?.toLocaleString()}</TableCell>
+                              </>
+                            )}
+                            <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{lectura.notas || '-'}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="sin-actividad">
+            <InactivityPanel
+              impresoras={impresoras}
+              lecturas={lecturas}
+              sectores={sectores}
+              filiales={filiales}
+              onRegister={(printerId) => {
+                setSelectedPrinter(printerId);
+                setDialogOpen(true);
+              }}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );
