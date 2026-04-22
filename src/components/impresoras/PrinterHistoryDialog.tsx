@@ -11,6 +11,7 @@ import { Loader2, History, FileText, Wrench, Calendar, User, MapPin, Building2, 
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { RepairTimeline } from './RepairTimeline';
+import { PrinterUsageOverview } from './PrinterUsageOverview';
 
 interface TimelineEvent {
   id: string;
@@ -44,6 +45,8 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
   const [locationEvents, setLocationEvents] = useState<LocationEvent[]>([]);
   const [sectorMap, setSectorMap] = useState<Record<string, string>>({});
   const [filialMap, setFilialMap] = useState<Record<string, string>>({});
+  const [printer, setPrinter] = useState<any | null>(null);
+  const [rawReadings, setRawReadings] = useState<any[]>([]);
 
   useEffect(() => {
     if (open && printerId) {
@@ -54,7 +57,12 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
   const fetchAllHistory = async (id: string) => {
     setLoading(true);
 
-    const [cambiosResp, lecturasResp, piezasResp, sectoresResp, filialesResp] = await Promise.all([
+    const [printerResp, cambiosResp, lecturasResp, piezasResp, sectoresResp, filialesResp] = await Promise.all([
+      supabase
+        .from('impresoras')
+        .select('id, nombre, modelo, fecha_registro, contador_negro_inicial, contador_color_inicial, contador_negro_actual, contador_color_actual')
+        .eq('id', id)
+        .single(),
       supabase
         .from('historial_cambios')
         .select('*, profiles:usuario_id(email, full_name)')
@@ -83,6 +91,9 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
     const fMap: Record<string, string> = {};
     (filialesResp.data || []).forEach((f: any) => { fMap[f.id] = f.nombre; });
     setFilialMap(fMap);
+
+    setPrinter(printerResp.data || null);
+    setRawReadings((lecturasResp.data || []) as any[]);
 
     const timeline: TimelineEvent[] = [];
     const locations: LocationEvent[] = [];
@@ -186,6 +197,7 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
 
           <TabsContent value="general">
             <div className="overflow-y-auto max-h-[60vh] pr-1 mt-2">
+              <PrinterUsageOverview printer={printer} readings={rawReadings} />
               {loading ? (
                 <div className="flex justify-center py-12">
                   <Loader2 className="w-8 h-8 animate-spin text-primary" />

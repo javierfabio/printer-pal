@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,11 +16,13 @@ import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { PrinterHistoryDialog } from '@/components/impresoras/PrinterHistoryDialog';
 import { RepairOutDialog } from '@/components/impresoras/RepairOutDialog';
 import { RepairReturnDialog } from '@/components/impresoras/RepairReturnDialog';
+import { PrinterUsageOverview } from '@/components/impresoras/PrinterUsageOverview';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
+import { useSearchParams } from 'react-router-dom';
 
 type TipoConsumo = 'tinta' | 'toner';
 type TipoImpresion = 'monocromatico' | 'color';
@@ -67,6 +69,7 @@ const impresoraSchema = z.object({
 export default function Impresoras() {
   const { user, role } = useAuth();
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
@@ -83,6 +86,7 @@ export default function Impresoras() {
   const [repairOutOpen, setRepairOutOpen] = useState(false);
   const [repairReturnOpen, setRepairReturnOpen] = useState(false);
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
+  const [printerReadings, setPrinterReadings] = useState<Record<string, Array<{ id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; notas: string | null }>>>({});
   
   const [formData, setFormData] = useState({
     serie: '',
@@ -106,6 +110,12 @@ export default function Impresoras() {
   const [newFilialName, setNewFilialName] = useState('');
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    const filialFromQuery = searchParams.get('filial');
+    if (!filialFromQuery) return;
+    setSearch('');
+  }, [searchParams]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -262,14 +272,18 @@ export default function Impresoras() {
 
   const openHistorial = (printer: Impresora) => { setSelectedPrinterId(printer.id); setSelectedPrinterName(printer.nombre); setHistorialOpen(true); };
 
-  const filteredImpresoras = impresoras.filter(imp => {
-    const matchesSearch =
-      imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
-      imp.serie.toLowerCase().includes(search.toLowerCase()) ||
-      imp.modelo.toLowerCase().includes(search.toLowerCase());
-    const matchesSinLectura = !filterSinLectura || printersSinLectura.has(imp.id);
-    return matchesSearch && matchesSinLectura;
-  });
+  const filteredImpresoras = useMemo(() => {
+    const filialFromQuery = searchParams.get('filial');
+    return impresoras.filter(imp => {
+      const matchesSearch =
+        imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
+        imp.serie.toLowerCase().includes(search.toLowerCase()) ||
+        imp.modelo.toLowerCase().includes(search.toLowerCase());
+      const matchesSinLectura = !filterSinLectura || printersSinLectura.has(imp.id);
+      const matchesFilial = !filialFromQuery || imp.filial_id === filialFromQuery;
+      return matchesSearch && matchesSinLectura && matchesFilial;
+    });
+  }, [filterSinLectura, impresoras, printersSinLectura, search, searchParams]);
 
   const getStatusBadge = (estado: EstadoImpresora) => {
     const statusMap: Record<EstadoImpresora, { label: string; className: string }> = {
