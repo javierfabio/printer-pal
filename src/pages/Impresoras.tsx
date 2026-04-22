@@ -445,7 +445,7 @@ export default function Impresoras() {
               <Button
                 variant={filterSinLectura ? 'default' : 'outline'}
                 onClick={() => setFilterSinLectura(v => !v)}
-                className={cn("gap-2 flex-shrink-0", filterSinLectura && "bg-orange-500 hover:bg-orange-500/90 text-white")}
+                className={cn("gap-2 flex-shrink-0", filterSinLectura && "bg-warning hover:bg-warning/90 text-warning-foreground")}
               >
                 <FileWarning className="w-4 h-4" />
                 Sin lecturas ({printersSinLectura.size})
@@ -489,7 +489,7 @@ export default function Impresoras() {
                           <div className="flex items-center gap-2">
                             <span>{imp.nombre}</span>
                             {printersSinLectura.has(imp.id) && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-orange-500/15 text-orange-500 border border-orange-500/30 flex items-center gap-1">
+                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
                                 <FileWarning className="w-3 h-3" />Sin registro
                               </span>
                             )}
