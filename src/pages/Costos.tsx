@@ -28,6 +28,7 @@ import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface PrecioModelo {
   id?: string;
@@ -66,6 +67,7 @@ export default function Costos() {
   const { role } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [preciosModelo, setPreciosModelo] = useState<PrecioModelo[]>([]);
   const [reparaciones, setReparaciones] = useState<CostoReparacion[]>([]);
@@ -91,6 +93,8 @@ export default function Costos() {
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
+    try {
     const [precResp, repResp, impResp, secResp, filResp] = await Promise.all([
       supabase.from('precios_modelo').select('*').order('modelo'),
       supabase.from('costos_reparacion').select('*').order('tipo_reparacion'),
@@ -104,7 +108,12 @@ export default function Costos() {
     if (impResp.data) setImpresoras(impResp.data as ImpresoraBasic[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getPrecio = (modelo: string) => preciosModelo.find(p => p.modelo === modelo);
@@ -273,7 +282,7 @@ export default function Costos() {
           <Button onClick={exportPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
         </div>
 
-        {loading ? (
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : loading ? (
           <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
           <>

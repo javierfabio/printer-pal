@@ -676,6 +676,7 @@ export default function Piezas() {
           </div>
         </div>
 
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         {/* Alerts */}
         {piezasConAlerta.length > 0 && (
           <Card className="border-warning/50 bg-warning/5">
@@ -1289,6 +1290,8 @@ export default function Piezas() {
         </Dialog>
 
         {/* Edit Pieza Dialog */}
+        </>}
+
         <EditPiezaDialog
           pieza={selectedPieza}
           open={editPiezaDialogOpen}
