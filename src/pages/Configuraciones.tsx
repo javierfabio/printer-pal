@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { getCorporateLogo, saveCorporateLogo, removeCorporateLogo, getCorporateName, saveCorporateName } from '@/lib/pdfHeader';
 import { getInactivityTimeout, saveInactivityTimeout } from '@/hooks/useInactivityTimeout';
 import { getSystemConfig, saveSystemConfig, type SystemConfig } from '@/lib/systemConfig';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface Sector { id: string; nombre: string; descripcion: string | null; activo: boolean; }
 interface Filial { id: string; nombre: string; direccion: string | null; activo: boolean; }
@@ -46,6 +47,7 @@ export default function Configuraciones() {
   const { role } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [sectorDialogOpen, setSectorDialogOpen] = useState(false);
@@ -140,13 +142,20 @@ export default function Configuraciones() {
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
+    try {
     const [secResp, filResp] = await Promise.all([
       supabase.from('sectores').select('*').order('nombre'),
       supabase.from('filiales').select('*').order('nombre'),
     ]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleAddSector = async () => {
@@ -189,7 +198,7 @@ export default function Configuraciones() {
           <p className="text-muted-foreground mt-1">Administración del sistema, sectores, filiales y personalización</p>
         </div>
 
-        <Accordion type="multiple" defaultValue={["sistema"]} className="space-y-3">
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <Accordion type="multiple" defaultValue={["sistema"]} className="space-y-3">
 
           <AccordionItem value="backup" className="border rounded-lg bg-card">
             <AccordionTrigger className="px-4 hover:no-underline">
@@ -409,7 +418,7 @@ export default function Configuraciones() {
         </div>
             </AccordionContent>
           </AccordionItem>
-        </Accordion>
+        </Accordion>}
       </div>
     </DashboardLayout>
   );

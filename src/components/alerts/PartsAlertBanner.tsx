@@ -4,7 +4,8 @@ import { AlertTriangle, X, ChevronRight, Package, ChevronDown, ChevronUp } from 
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { usePartsAlerts, TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
+import { TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
+import { usePartsAlertsContext } from '@/contexts/PartsAlertsContext';
 
 interface PartsAlertBannerProps {
   showDetails?: boolean;
@@ -18,7 +19,7 @@ export function PartsAlertBanner({
   className 
 }: PartsAlertBannerProps) {
   const navigate = useNavigate();
-  const { alerts, criticalAlerts, warningAlerts, loading, hasAnyAlerts } = usePartsAlerts();
+  const { alerts, criticalAlerts, warningAlerts, loading, hasAnyAlerts } = usePartsAlertsContext();
   const [dismissed, setDismissed] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 

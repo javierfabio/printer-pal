@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { z } from 'zod';
 import { useSearchParams } from 'react-router-dom';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 type TipoConsumo = 'tinta' | 'toner';
 type TipoImpresion = 'monocromatico' | 'color';
@@ -73,6 +74,7 @@ export default function Impresoras() {
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
   const [filterSinLectura, setFilterSinLectura] = useState(false);
@@ -117,6 +119,8 @@ export default function Impresoras() {
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
+    try {
     const [impResp, secResp, filResp, lectResp] = await Promise.all([
       supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)').order('created_at', { ascending: false }),
       supabase.from('sectores').select('*').eq('activo', true),
@@ -133,7 +137,12 @@ export default function Impresoras() {
       idsConLectura.forEach(id => { if (!setIds.has(id)) sinLect.add(id); });
       setPrintersSinLectura(sinLect);
     }
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetForm = () => {
@@ -435,6 +444,7 @@ export default function Impresoras() {
           </div>
         </div>
 
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -566,6 +576,7 @@ export default function Impresoras() {
             />
           </>
         )}
+        </>}
       </div>
     </DashboardLayout>
   );

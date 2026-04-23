@@ -12,8 +12,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { usePartsAlerts, TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
+import { TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
+import { usePartsAlertsContext } from '@/contexts/PartsAlertsContext';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
@@ -64,7 +66,7 @@ interface NoReadingPrinter { id: string; nombre: string; modelo: string; serie: 
 export default function Dashboard() {
   const { user, role } = useAuth();
   const navigate = useNavigate();
-  const { alerts: piezasConAlerta, loading: alertsLoading } = usePartsAlerts();
+  const { alerts: piezasConAlerta } = usePartsAlertsContext();
   const [stats, setStats] = useState<Stats>({
     total: 0, activas: 0, enReparacion: 0, inactivas: 0,
     totalPaginasNegro: 0, totalPaginasColor: 0, lecturasHoy: 0,
@@ -83,10 +85,12 @@ export default function Dashboard() {
   const [showNoReadingPanel, setShowNoReadingPanel] = useState(false);
   const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = async () => {
       setLoading(true);
+      setFetchError(null);
+      try {
       const [printersResp, readingsResp, secResp, filResp, repairsResp, allReadingsResp, preciosResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
@@ -202,8 +206,15 @@ export default function Dashboard() {
         const pagMesAnt = pagesInRange(startPrev, startCurrent);
         setStats(prev => ({ ...prev, paginasMesActual: pagMes, paginasMesAnterior: pagMesAnt, lecturasMes: lectMes, lecturasMesAnterior: lectMesAnt }));
       }
-      setLoading(false);
+      } catch (error) {
+        console.error('Error al cargar datos:', error);
+        setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+      } finally {
+        setLoading(false);
+      }
     };
+
+  useEffect(() => {
     fetchData();
   }, []);
 
@@ -274,6 +285,7 @@ export default function Dashboard() {
           ))}
         </div>
 
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         {/* Parts Alerts - always visible */}
         {piezasConAlerta.length > 0 && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
@@ -528,6 +540,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         )}
+        </>}
       </div>
     </DashboardLayout>
   );
