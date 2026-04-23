@@ -17,6 +17,7 @@ interface Impresora {
   fecha_registro: string;
   sector_id: string | null;
   filial_id: string | null;
+  estado?: string;
 }
 
 interface LecturaContador {
@@ -53,7 +54,9 @@ export function InactivityPanel({ impresoras, lecturas, sectores, filiales, onRe
   }, [selectedMonth]);
 
   const rows = useMemo(() => {
-    return impresoras.map((printer) => {
+    return impresoras
+      .filter((printer) => printer.estado === 'activa')
+      .map((printer) => {
       const printerReadings = lecturas
         .filter((reading) => reading.impresora_id === printer.id)
         .sort((a, b) => new Date(b.fecha_lectura).getTime() - new Date(a.fecha_lectura).getTime());
@@ -141,7 +144,7 @@ export function InactivityPanel({ impresoras, lecturas, sectores, filiales, onRe
             Impresoras sin Actividad
           </CardTitle>
           <CardDescription>
-            {rows.length} impresora{rows.length !== 1 ? 's' : ''} sin lectura en {monthRange.label} de {impresoras.length} activas
+            {rows.length} impresora{rows.length !== 1 ? 's' : ''} sin lectura en {monthRange.label} de {impresoras.filter((printer) => printer.estado === 'activa').length} total
           </CardDescription>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -158,7 +161,7 @@ export function InactivityPanel({ impresoras, lecturas, sectores, filiales, onRe
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="rounded-lg border bg-muted/30 px-4 py-3 text-sm">
-          <span className="font-medium">Resumen:</span> {rows.length} sin lectura este mes de {impresoras.length} total
+          <span className="font-medium">Resumen:</span> {rows.length} impresoras sin lectura este mes de {impresoras.filter((printer) => printer.estado === 'activa').length} total
         </div>
 
         <div className="overflow-x-auto">

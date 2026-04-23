@@ -32,6 +32,7 @@ interface ReadingRow extends Reading {
   diffBlack: number | null;
   diffColor: number | null;
   totalDiff: number | null;
+  isHigh: boolean;
 }
 
 const monthLabel = (value: string) => {
@@ -52,18 +53,26 @@ export function PrinterUsageOverview({ printer, readings }: Props) {
   const sortedReadings = useMemo(() => [...readings].sort((a, b) => new Date(a.fecha_lectura).getTime() - new Date(b.fecha_lectura).getTime()), [readings]);
 
   const readingRows = useMemo<ReadingRow[]>(() => {
+    const totals: number[] = [];
+
     return sortedReadings.map((reading, index) => {
       if (index === 0) {
-        return { ...reading, diffBlack: null, diffColor: null, totalDiff: null };
+        return { ...reading, diffBlack: null, diffColor: null, totalDiff: null, isHigh: false };
       }
       const previous = sortedReadings[index - 1];
       const diffBlack = Math.max(0, (reading.contador_negro || 0) - (previous.contador_negro || 0));
       const diffColor = Math.max(0, (reading.contador_color || 0) - (previous.contador_color || 0));
+      const totalDiff = diffBlack + diffColor;
+      const historicalAverage = totals.length > 0 ? totals.reduce((acc, value) => acc + value, 0) / totals.length : null;
+      const isHigh = historicalAverage !== null && totalDiff > historicalAverage * 2;
+      totals.push(totalDiff);
+
       return {
         ...reading,
         diffBlack,
         diffColor,
-        totalDiff: diffBlack + diffColor,
+        totalDiff,
+        isHigh,
       };
     }).reverse();
   }, [sortedReadings]);
@@ -216,7 +225,9 @@ export function PrinterUsageOverview({ printer, readings }: Props) {
                       <>
                         <TableCell className="text-right text-info">+{reading.diffBlack?.toLocaleString()}</TableCell>
                         <TableCell className="text-right text-success">+{reading.diffColor?.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-semibold">+{reading.totalDiff?.toLocaleString()}</TableCell>
+                        <TableCell className={cn('text-right font-semibold', reading.isHigh ? 'text-warning' : 'text-success')}>
+                          +{reading.totalDiff?.toLocaleString()}
+                        </TableCell>
                       </>
                     )}
                   </TableRow>
