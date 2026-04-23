@@ -165,6 +165,8 @@ export default function Historial() {
     return fields.some((field) => field?.toLowerCase().includes(term));
   };
 
+  const getEmptySearchMessage = () => `No se encontraron lecturas para "${searchTerm}". Intentá buscar por serie, modelo o sector.`;
+
   const filteredLecturas = sortByDate(lecturas.filter(l => {
     const pi = getPrinterInfo(l.impresora_id);
     return matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && matchesSearch([
@@ -370,7 +372,8 @@ export default function Historial() {
               <div className="space-y-2"><Label className="text-sm">Hasta</Label><Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
               <div className="space-y-2">
                 <Label className="text-sm">Buscar</Label>
-                <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Serie, marca, modelo, sector o filial..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
+                <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Buscar por serie, modelo, sector o filial..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
+                <p className="text-xs text-muted-foreground">Puede buscar por número de serie, nombre de impresora, modelo, sector o filial</p>
               </div>
             </div>
             <div className="flex justify-between items-center mt-4">
@@ -392,7 +395,7 @@ export default function Historial() {
             ) : fetchError ? (
               <FetchErrorState error={fetchError} onRetry={fetchData} />
             ) : activeTab === 'lecturas' ? (
-              filteredLecturas.length === 0 ? (searchTerm ? <div className="text-center py-12 text-muted-foreground"><Search className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-medium">Sin resultados para "{searchTerm}"</p><p className="text-sm mt-1">Intentá buscar por número de serie, marca, modelo, sector o filial</p><Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>Limpiar búsqueda</Button></div> : <div className="text-center py-12 text-muted-foreground"><FileText className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay lecturas</p></div>) : (
+              filteredLecturas.length === 0 ? (searchTerm ? <div className="text-center py-12 text-muted-foreground"><Search className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-medium">{getEmptySearchMessage()}</p><Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>Limpiar búsqueda</Button></div> : <div className="text-center py-12 text-muted-foreground"><FileText className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay lecturas</p></div>) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -407,17 +410,29 @@ export default function Historial() {
                         <TableHead className="text-right">Negro Act.</TableHead>
                         <TableHead className="text-right">Color Ant.</TableHead>
                         <TableHead className="text-right">Color Act.</TableHead>
-                        <TableHead className="text-right">Páginas del período</TableHead>
+                        <TableHead className="text-right">B/N Período</TableHead>
+                        <TableHead className="text-right">Color Período</TableHead>
+                        <TableHead className="text-right">Total Período</TableHead>
                         <TableHead>Registrado Por</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredLecturas.map(l => {
+                      {filteredLecturas.map((l, index) => {
                         const pi = getPrinterInfo(l.impresora_id);
                         const ant = lecturasConAnterior[l.id];
                         const consumoN = ant?.negroAnt != null && l.contador_negro != null ? l.contador_negro - ant.negroAnt : 0;
                         const consumoC = ant?.colorAnt != null && l.contador_color != null ? l.contador_color - ant.colorAnt : 0;
                         const consumoTotal = consumoN + consumoC;
+                        const samePrinterPrevious = filteredLecturas
+                          .filter(item => item.impresora_id === l.impresora_id)
+                          .sort((a, b) => new Date(a.fecha_lectura).getTime() - new Date(b.fecha_lectura).getTime());
+                        const currentAscIndex = samePrinterPrevious.findIndex(item => item.id === l.id);
+                        const priorTotals = samePrinterPrevious.slice(1, currentAscIndex).map((item) => {
+                          const prev = samePrinterPrevious[samePrinterPrevious.findIndex(x => x.id === item.id) - 1];
+                          return Math.max(0, (item.contador_negro || 0) - (prev?.contador_negro || 0)) + Math.max(0, (item.contador_color || 0) - (prev?.contador_color || 0));
+                        });
+                        const avg = priorTotals.length ? priorTotals.reduce((acc, value) => acc + value, 0) / priorTotals.length : null;
+                        const isHigh = avg !== null && consumoTotal > avg * 2;
                         return (
                           <TableRow key={l.id} className="hover:bg-muted/50">
                             <TableCell className="whitespace-nowrap">
@@ -435,20 +450,17 @@ export default function Historial() {
                             <TableCell className="text-right font-mono font-medium">{l.contador_negro?.toLocaleString() ?? '-'}</TableCell>
                             <TableCell className="text-right font-mono text-muted-foreground">{ant?.colorAnt?.toLocaleString() ?? '-'}</TableCell>
                             <TableCell className="text-right font-mono font-medium">{l.contador_color?.toLocaleString() ?? '-'}</TableCell>
-                            <TableCell className="text-right">
-                              {consumoTotal > 0 ? (
-                                <div className="flex flex-col items-end gap-0.5">
-                                  <Badge variant="secondary" className="font-mono">{consumoTotal.toLocaleString()}</Badge>
-                                  {(consumoN > 0 || consumoC > 0) && (
-                                    <span className="text-[10px] text-muted-foreground font-mono">
-                                      {consumoN > 0 && <>B/N: {consumoN.toLocaleString()}</>}
-                                      {consumoN > 0 && consumoC > 0 && ' · '}
-                                      {consumoC > 0 && <>Color: {consumoC.toLocaleString()}</>}
-                                    </span>
-                                  )}
-                                </div>
-                              ) : <span className="text-muted-foreground">—</span>}
-                            </TableCell>
+                            {ant?.negroAnt == null && ant?.colorAnt == null ? (
+                              <TableCell colSpan={3} className="text-right text-muted-foreground">Primera lectura</TableCell>
+                            ) : (
+                              <>
+                                <TableCell className="text-right text-info">+{consumoN.toLocaleString()}</TableCell>
+                                <TableCell className="text-right text-success">+{consumoC.toLocaleString()}</TableCell>
+                                <TableCell className={cn('text-right font-semibold', isHigh ? 'text-warning' : 'text-success')}>
+                                  +{consumoTotal.toLocaleString()}
+                                </TableCell>
+                              </>
+                            )}
                             <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(l.registrado_por)}</span></div></TableCell>
                           </TableRow>
                         );
