@@ -18,6 +18,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { RecentReadingsPeriodTable } from '@/components/informes/RecentReadingsPeriodTable';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface Impresora { id: string; nombre: string; serie: string; modelo: string; tipo_impresion: string; contador_negro_actual: number; contador_color_actual: number; contador_negro_inicial: number; contador_color_inicial: number; sector_id: string | null; filial_id: string | null; }
 interface Sector { id: string; nombre: string; }
@@ -39,6 +40,7 @@ export default function Informes() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [piezas, setPiezas] = useState<PiezaInfo[]>([]);
   const [lecturas, setLecturas] = useState<LecturaInfo[]>([]);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const [filterFilial, setFilterFilial] = useState<string>('all');
   const [filterSector, setFilterSector] = useState<string>('all');
@@ -53,6 +55,8 @@ export default function Informes() {
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
+    try {
     const [impResp, secResp, filResp, piezasResp, profResp, lecResp] = await Promise.all([
       supabase.from('impresoras').select('*').eq('estado', 'activa'),
       supabase.from('sectores').select('*').eq('activo', true),
@@ -80,7 +84,12 @@ export default function Informes() {
         };
       }));
     }
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getProfileName = (userId: string | null) => { if (!userId) return 'Desconocido'; const p = profiles.find(pr => pr.id === userId); return p?.full_name || p?.email || userId.slice(0, 8); };
@@ -265,7 +274,7 @@ export default function Informes() {
           </CardContent>
         </Card>
 
-        {loading ? <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div> : (
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : loading ? <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div> : (
           <>
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

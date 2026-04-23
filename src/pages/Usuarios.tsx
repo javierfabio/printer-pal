@@ -31,6 +31,7 @@ import { AddUserDialog } from '@/components/users/AddUserDialog';
 import { EditUserDialog } from '@/components/users/EditUserDialog';
 import { DeleteUserDialog } from '@/components/users/DeleteUserDialog';
 import { ChangePasswordDialog } from '@/components/users/ChangePasswordDialog';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface UserWithRole {
   id: string;
@@ -44,6 +45,7 @@ export default function Usuarios() {
   const { role, user: currentUser } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
   
@@ -61,8 +63,8 @@ export default function Usuarios() {
 
   const fetchUsers = async () => {
     setLoading(true);
-    
-    // Fetch profiles and user_roles separately due to no FK relationship
+    setFetchError(null);
+    try {
     const [profilesResp, rolesResp] = await Promise.all([
       supabase.from('profiles').select('*').order('created_at', { ascending: false }),
       supabase.from('user_roles').select('user_id, role'),
@@ -80,8 +82,12 @@ export default function Usuarios() {
         role: rolesMap.get(u.id) || 'user',
       })));
     }
-    
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateUserRole = async (userId: string, newRole: 'admin' | 'user') => {
@@ -233,7 +239,9 @@ export default function Usuarios() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {fetchError && !loading ? (
+              <FetchErrorState error={fetchError} onRetry={fetchUsers} />
+            ) : loading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
