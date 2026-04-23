@@ -16,6 +16,7 @@ import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface HistorialItem { id: string; created_at: string; campo_modificado: string; valor_anterior: string | null; valor_nuevo: string | null; motivo: string | null; impresora_id: string; usuario_id: string; impresoras?: { nombre: string; serie: string }; }
 interface LecturaHistorial { id: string; fecha_lectura: string; contador_negro: number | null; contador_color: number | null; notas: string | null; impresora_id: string; registrado_por: string; impresoras?: { nombre: string; serie: string }; }
@@ -47,11 +48,14 @@ export default function Historial() {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas' | 'reparaciones'>('lecturas');
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
     setLoading(true);
+    setFetchError(null);
+    try {
     const [histResp, lecResp, piezasResp, repResp, impResp, profResp, secResp, filResp] = await Promise.all([
       supabase.from('historial_cambios').select('*, impresoras(nombre, serie)').order('created_at', { ascending: false }).limit(500),
       supabase.from('lecturas_contadores').select('*, impresoras(nombre, serie)').order('fecha_lectura', { ascending: false }).limit(500),
@@ -70,7 +74,12 @@ export default function Historial() {
     if (profResp.data) setProfiles(profResp.data as Profile[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getProfileName = (userId: string | null) => {
@@ -150,15 +159,66 @@ export default function Historial() {
     return true;
   };
 
-  const matchesSearch = (name?: string) => {
+  const matchesSearch = (fields: (string | null | undefined)[]) => {
     if (!searchTerm) return true;
-    return name?.toLowerCase().includes(searchTerm.toLowerCase());
+    const term = searchTerm.toLowerCase();
+    return fields.some((field) => field?.toLowerCase().includes(term));
   };
 
-  const filteredLecturas = sortByDate(lecturas.filter(l => matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && matchesSearch(l.impresoras?.nombre)), 'fecha_lectura');
-  const filteredHistorial = sortByDate(historial.filter(h => matchesPrinterFilter(h.impresora_id) && matchesDateFilter(h.created_at) && matchesSearch(h.impresoras?.nombre)), 'created_at');
-  const filteredPiezas = sortByDate(piezas.filter(p => matchesPrinterFilter(p.impresora_id) && matchesDateFilter(p.fecha_cambio) && matchesSearch(p.impresoras?.nombre)), 'fecha_cambio');
-  const filteredReparaciones = sortByDate(reparaciones.filter(r => matchesPrinterFilter(r.printer_id) && matchesDateFilter(r.fecha_salida) && matchesSearch(r.impresoras?.nombre)), 'fecha_salida');
+  const filteredLecturas = sortByDate(lecturas.filter(l => {
+    const pi = getPrinterInfo(l.impresora_id);
+    return matchesPrinterFilter(l.impresora_id) && matchesDateFilter(l.fecha_lectura) && matchesSearch([
+      l.impresoras?.nombre,
+      l.impresoras?.serie,
+      pi?.modelo,
+      getSectorName(pi?.sector_id || null),
+      getFilialName(pi?.filial_id || null),
+      l.notas,
+    ]);
+  }), 'fecha_lectura');
+  const filteredHistorial = sortByDate(historial.filter(h => {
+    const pi = getPrinterInfo(h.impresora_id);
+    return matchesPrinterFilter(h.impresora_id) && matchesDateFilter(h.created_at) && matchesSearch([
+      h.impresoras?.nombre,
+      h.impresoras?.serie,
+      pi?.modelo,
+      getSectorName(pi?.sector_id || null),
+      getFilialName(pi?.filial_id || null),
+      h.campo_modificado,
+      h.valor_anterior,
+      h.valor_nuevo,
+      h.motivo,
+    ]);
+  }), 'created_at');
+  const filteredPiezas = sortByDate(piezas.filter(p => {
+    const pi = getPrinterInfo(p.impresora_id);
+    return matchesPrinterFilter(p.impresora_id) && matchesDateFilter(p.fecha_cambio) && matchesSearch([
+      p.impresoras?.nombre,
+      p.impresoras?.serie,
+      pi?.modelo,
+      getSectorName(pi?.sector_id || null),
+      getFilialName(pi?.filial_id || null),
+      p.nombre_pieza,
+      p.tipo_pieza,
+      p.observaciones,
+      p.motivo,
+    ]);
+  }), 'fecha_cambio');
+  const filteredReparaciones = sortByDate(reparaciones.filter(r => {
+    const pi = getPrinterInfo(r.printer_id);
+    return matchesPrinterFilter(r.printer_id) && matchesDateFilter(r.fecha_salida) && matchesSearch([
+      r.impresoras?.nombre,
+      r.impresoras?.serie,
+      pi?.modelo,
+      getSectorName(pi?.sector_id || null),
+      getFilialName(pi?.filial_id || null),
+      r.motivo,
+      r.tecnico_responsable,
+      r.resultado,
+      r.estado,
+      r.notas,
+    ]);
+  }), 'fecha_salida');
 
   const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setSortOrder('desc'); };
   const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || searchTerm;
@@ -310,7 +370,7 @@ export default function Historial() {
               <div className="space-y-2"><Label className="text-sm">Hasta</Label><Input type="date" value={filterDateTo} onChange={e => setFilterDateTo(e.target.value)} /></div>
               <div className="space-y-2">
                 <Label className="text-sm">Buscar</Label>
-                <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Impresora, serie, modelo..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
+                <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><Input placeholder="Serie, marca, modelo, sector o filial..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" /></div>
               </div>
             </div>
             <div className="flex justify-between items-center mt-4">
@@ -329,8 +389,10 @@ export default function Historial() {
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : fetchError ? (
+              <FetchErrorState error={fetchError} onRetry={fetchData} />
             ) : activeTab === 'lecturas' ? (
-              filteredLecturas.length === 0 ? <div className="text-center py-12 text-muted-foreground"><FileText className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay lecturas</p></div> : (
+              filteredLecturas.length === 0 ? (searchTerm ? <div className="text-center py-12 text-muted-foreground"><Search className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-medium">Sin resultados para "{searchTerm}"</p><p className="text-sm mt-1">Intentá buscar por número de serie, marca, modelo, sector o filial</p><Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>Limpiar búsqueda</Button></div> : <div className="text-center py-12 text-muted-foreground"><FileText className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay lecturas</p></div>) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -396,7 +458,7 @@ export default function Historial() {
                 </div>
               )
             ) : activeTab === 'cambios' ? (
-              filteredHistorial.length === 0 ? <div className="text-center py-12 text-muted-foreground"><HistoryIcon className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay cambios</p></div> : (
+              filteredHistorial.length === 0 ? (searchTerm ? <div className="text-center py-12 text-muted-foreground"><Search className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-medium">Sin resultados para "{searchTerm}"</p><p className="text-sm mt-1">Intentá buscar por número de serie, marca, modelo, sector o filial</p><Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>Limpiar búsqueda</Button></div> : <div className="text-center py-12 text-muted-foreground"><HistoryIcon className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay cambios</p></div>) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow><TableHead>Fecha/Hora</TableHead><TableHead>Filial</TableHead><TableHead>Impresora</TableHead><TableHead>Campo</TableHead><TableHead>Cambio</TableHead><TableHead>Realizado Por</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
@@ -417,7 +479,7 @@ export default function Historial() {
                 </div>
               )
             ) : activeTab === 'piezas' ? (
-              filteredPiezas.length === 0 ? <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reemplazos</p></div> : (
+              filteredPiezas.length === 0 ? (searchTerm ? <div className="text-center py-12 text-muted-foreground"><Search className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-medium">Sin resultados para "{searchTerm}"</p><p className="text-sm mt-1">Intentá buscar por número de serie, marca, modelo, sector o filial</p><Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>Limpiar búsqueda</Button></div> : <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reemplazos</p></div>) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Filial</TableHead><TableHead>Sector</TableHead><TableHead>Impresora</TableHead><TableHead>Pieza</TableHead><TableHead className="text-right">Contador</TableHead><TableHead>Técnico</TableHead><TableHead>Observación</TableHead></TableRow></TableHeader>
@@ -439,7 +501,7 @@ export default function Historial() {
                 </div>
               )
             ) : (
-              filteredReparaciones.length === 0 ? <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reparaciones registradas</p></div> : (
+              filteredReparaciones.length === 0 ? (searchTerm ? <div className="text-center py-12 text-muted-foreground"><Search className="w-16 h-16 mx-auto mb-4 opacity-30" /><p className="font-medium">Sin resultados para "{searchTerm}"</p><p className="text-sm mt-1">Intentá buscar por número de serie, marca, modelo, sector o filial</p><Button variant="outline" size="sm" className="mt-4" onClick={clearFilters}>Limpiar búsqueda</Button></div> : <div className="text-center py-12 text-muted-foreground"><Wrench className="w-16 h-16 mx-auto mb-4 opacity-30" /><p>No hay reparaciones registradas</p></div>) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader><TableRow><TableHead>Salida</TableHead><TableHead>Retorno</TableHead><TableHead className="text-right">Días</TableHead><TableHead>Impresora</TableHead><TableHead>Motivo</TableHead><TableHead>Técnico</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Costo</TableHead><TableHead>Resultado</TableHead></TableRow></TableHeader>
