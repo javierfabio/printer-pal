@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { getSystemConfig } from '@/lib/systemConfig';
 import { Badge } from '@/components/ui/badge';
-import { usePartsAlerts } from '@/hooks/usePartsAlerts';
+import { usePartsAlertsContext } from '@/contexts/PartsAlertsContext';
 import { supabase } from '@/integrations/supabase/client';
 
 interface MenuItem {
@@ -38,7 +38,7 @@ export function AppSidebar() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(true);
   const [systemName, setSystemName] = useState('PrintControl');
-  const { alerts } = usePartsAlerts();
+  const { alerts } = usePartsAlertsContext();
   const [repairCount, setRepairCount] = useState(0);
 
   useEffect(() => {

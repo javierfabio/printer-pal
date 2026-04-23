@@ -1,11 +1,11 @@
-import { ReactNode, useEffect, useCallback, useState } from 'react';
+import { ReactNode, useCallback, useState } from 'react';
 import { AppSidebar } from './AppSidebar';
 import { PartsAlertBanner } from '@/components/alerts/PartsAlertBanner';
-import { usePartsAlerts } from '@/hooks/usePartsAlerts';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useInactivityTimeout } from '@/hooks/useInactivityTimeout';
 import { getSystemConfig } from '@/lib/systemConfig';
+import { PartsAlertsProvider } from '@/contexts/PartsAlertsContext';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -14,7 +14,6 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { toast } = useToast();
   const { signOut } = useAuth();
-  const { criticalAlerts, warningAlerts, loading } = usePartsAlerts();
   const [systemConfig] = useState(getSystemConfig());
 
   const handleInactivityTimeout = useCallback(() => {
@@ -24,35 +23,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   useInactivityTimeout(handleInactivityTimeout);
 
-  // Persistent alert - show every time alerts change (not just once)
-  useEffect(() => {
-    if (loading) return;
-    if (criticalAlerts.length > 0) {
-      toast({ variant: 'destructive', title: '⚠️ Alerta Crítica de Piezas', description: `${criticalAlerts.length} pieza(s) requieren reemplazo inmediato.` });
-    } else if (warningAlerts.length > 0) {
-      toast({ title: '⚡ Piezas Próximas a Vencer', description: `${warningAlerts.length} pieza(s) superan el umbral de advertencia.` });
-    }
-  // Only fire once per mount (page navigation)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading]);
-
   return (
-    <div className="flex min-h-screen w-full bg-background">
-      <AppSidebar />
-      <div className="flex-1 flex flex-col overflow-auto">
-        <main className="flex-1">
-          <div className="container py-6">
-            <PartsAlertBanner showDetails={true} maxItems={3} />
-            {children}
-          </div>
-        </main>
-        <footer className="border-t border-border py-3 px-6">
-          <div className="container flex flex-col sm:flex-row justify-between items-center gap-1 text-xs text-muted-foreground">
-            <span>{systemConfig.copyrightText}</span>
-            {systemConfig.developerText && <span>{systemConfig.developerText}</span>}
-          </div>
-        </footer>
+    <PartsAlertsProvider>
+      <div className="flex min-h-screen w-full bg-background">
+        <AppSidebar />
+        <div className="flex-1 flex flex-col overflow-auto">
+          <main className="flex-1">
+            <div className="container py-6">
+              <PartsAlertBanner showDetails={true} maxItems={3} />
+              {children}
+            </div>
+          </main>
+          <footer className="border-t border-border py-3 px-6">
+            <div className="container flex flex-col sm:flex-row justify-between items-center gap-1 text-xs text-muted-foreground">
+              <span>{systemConfig.copyrightText}</span>
+              {systemConfig.developerText && <span>{systemConfig.developerText}</span>}
+            </div>
+          </footer>
+        </div>
       </div>
-    </div>
+    </PartsAlertsProvider>
   );
 }
