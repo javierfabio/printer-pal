@@ -140,7 +140,7 @@ export default function Dashboard() {
           .filter((r: any) => new Date(r.fecha_lectura) >= currentMonthStart)
           .map((r: any) => r.impresora_id));
         const sinLectura = p
-          .filter(x => !idsConLectura.has(x.id) && x.estado !== 'baja')
+          .filter(x => x.estado === 'activa' && !idsConLecturaMes.has(x.id))
           .map(x => ({ id: x.id, nombre: x.nombre, modelo: x.modelo, serie: x.serie, filial_id: x.filial_id, sector_id: x.sector_id }));
         setNoReadingPrinters(sinLectura);
         // Modelos sin precio
