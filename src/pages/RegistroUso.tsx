@@ -840,6 +840,12 @@ export default function RegistroUso() {
               filiales={filiales}
               onRegister={(printerId) => {
                 setSelectedPrinter(printerId);
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev);
+                  next.delete('tab');
+                  next.set('impresora', printerId);
+                  return next;
+                });
                 setDialogOpen(true);
               }}
             />
