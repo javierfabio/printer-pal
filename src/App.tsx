@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { PartsAlertsProvider } from "@/contexts/PartsAlertsContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 
 import Index from "./pages/Index";
@@ -27,89 +28,91 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/auth" element={<Auth />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/registro-uso"
-                element={
-                  <ProtectedRoute>
-                    <RegistroUso />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/piezas"
-                element={
-                  <ProtectedRoute>
-                    <Piezas />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/impresoras"
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <Impresoras />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/informes"
-                element={
-                  <ProtectedRoute>
-                    <Informes />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/historial"
-                element={
-                  <ProtectedRoute>
-                    <Historial />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/usuarios"
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <Usuarios />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/costos"
-                element={
-                  <ProtectedRoute>
-                    <Costos />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/dashboard/configuraciones"
-                element={
-                  <ProtectedRoute requireAdmin>
-                    <Configuraciones />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </TooltipProvider>
+        <PartsAlertsProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/registro-uso"
+                  element={
+                    <ProtectedRoute>
+                      <RegistroUso />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/piezas"
+                  element={
+                    <ProtectedRoute>
+                      <Piezas />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/impresoras"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <Impresoras />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/informes"
+                  element={
+                    <ProtectedRoute>
+                      <Informes />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/historial"
+                  element={
+                    <ProtectedRoute>
+                      <Historial />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/usuarios"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <Usuarios />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/costos"
+                  element={
+                    <ProtectedRoute>
+                      <Costos />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/configuraciones"
+                  element={
+                    <ProtectedRoute requireAdmin>
+                      <Configuraciones />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </TooltipProvider>
+        </PartsAlertsProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>
