@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { EditPiezaDialog } from '@/components/piezas/EditPiezaDialog';
 import { EditConfiguracionDialog } from '@/components/piezas/EditConfiguracionDialog';
 import { StockTab } from '@/components/stock/StockTab';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 type TipoPieza = 'toner_negro' | 'toner_color' | 'fusor' | 'unidad_imagen' | 'malla' | 'transfer_belt' | 'rodillo' | 'otro';
 
@@ -129,6 +130,7 @@ export default function Piezas() {
   const [configuracion, setConfiguracion] = useState<ConfiguracionPieza[]>([]);
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [cambioDialogOpen, setCambioDialogOpen] = useState(false);
@@ -189,7 +191,8 @@ export default function Piezas() {
 
   const fetchData = async () => {
     setLoading(true);
-    
+    setFetchError(null);
+    try {
     const [piezasResp, historialResp, configResp, impResp, catResp] = await Promise.all([
       supabase
         .from('piezas_impresora')
@@ -222,8 +225,12 @@ export default function Piezas() {
     if (configResp.data) setConfiguracion(configResp.data as ConfiguracionPieza[]);
     if (impResp.data) setImpresoras(impResp.data);
     if (catResp.data) setCatalogo(catResp.data as PiezaCatalogo[]);
-    
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const resetForm = () => {

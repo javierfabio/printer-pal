@@ -444,6 +444,7 @@ export default function Impresoras() {
           </div>
         </div>
 
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         <Card>
           <CardContent className="pt-6">
             <div className="flex flex-col sm:flex-row gap-3">
@@ -575,6 +576,7 @@ export default function Impresoras() {
             />
           </>
         )}
+        </>}
       </div>
     </DashboardLayout>
   );
