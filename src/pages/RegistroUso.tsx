@@ -149,8 +149,7 @@ export default function RegistroUso() {
       supabase
         .from('lecturas_contadores')
         .select('*, impresoras(nombre, serie, modelo, tipo_impresion, sector_id, filial_id)')
-        .order('fecha_lectura', { ascending: false })
-        .limit(100),
+        .order('fecha_lectura', { ascending: false }),
       supabase.from('sectores').select('id, nombre').eq('activo', true),
       supabase.from('filiales').select('id, nombre').eq('activo', true),
     ]);
@@ -235,25 +234,31 @@ export default function RegistroUso() {
       grouped.set(lectura.impresora_id, list);
     });
 
-    const rows: Array<LecturaContador & { periodoNegro: number | null; periodoColor: number | null; periodoTotal: number | null }> = [];
+    const rows: Array<LecturaContador & { periodoNegro: number | null; periodoColor: number | null; periodoTotal: number | null; isHigh: boolean }> = [];
 
     grouped.forEach((printerReadings) => {
       const asc = [...printerReadings].sort((a, b) => new Date(a.fecha_lectura).getTime() - new Date(b.fecha_lectura).getTime());
+      const totals: number[] = [];
       asc.forEach((lectura, index) => {
         if (index === 0) {
-          rows.push({ ...lectura, periodoNegro: null, periodoColor: null, periodoTotal: null });
+          rows.push({ ...lectura, periodoNegro: null, periodoColor: null, periodoTotal: null, isHigh: false });
           return;
         }
 
         const previous = asc[index - 1];
         const periodoNegro = Math.max(0, (lectura.contador_negro || 0) - (previous.contador_negro || 0));
         const periodoColor = Math.max(0, (lectura.contador_color || 0) - (previous.contador_color || 0));
+        const periodoTotal = periodoNegro + periodoColor;
+        const historicalAverage = totals.length > 0 ? totals.reduce((acc, value) => acc + value, 0) / totals.length : null;
+        const isHigh = historicalAverage !== null && periodoTotal > historicalAverage * 2;
+        totals.push(periodoTotal);
 
         rows.push({
           ...lectura,
           periodoNegro,
           periodoColor,
-          periodoTotal: periodoNegro + periodoColor,
+          periodoTotal,
+          isHigh,
         });
       });
     });
@@ -811,7 +816,9 @@ export default function RegistroUso() {
                               <>
                                 <TableCell className="text-right text-info">+{lectura.periodoNegro?.toLocaleString()}</TableCell>
                                 <TableCell className="text-right text-success">+{lectura.periodoColor?.toLocaleString()}</TableCell>
-                                <TableCell className="text-right font-semibold">+{lectura.periodoTotal?.toLocaleString()}</TableCell>
+                                <TableCell className={cn('text-right font-semibold', lectura.isHigh ? 'text-warning' : 'text-success')}>
+                                  +{lectura.periodoTotal?.toLocaleString()}
+                                </TableCell>
                               </>
                             )}
                             <TableCell className="max-w-[200px] truncate text-sm text-muted-foreground">{lectura.notas || '-'}</TableCell>
