@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useSearchParams } from 'react-router-dom';
 import { InactivityPanel } from '@/components/registro/InactivityPanel';
+import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface Impresora {
   id: string;
@@ -108,6 +109,7 @@ export default function RegistroUso() {
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -140,7 +142,8 @@ export default function RegistroUso() {
 
   const fetchData = async () => {
     setLoading(true);
-    
+    setFetchError(null);
+    try {
     const [impResp, lecResp, secResp, filResp] = await Promise.all([
       supabase.from('impresoras').select('*, sectores(nombre), filiales(nombre)').eq('estado', 'activa').order('nombre'),
       supabase
@@ -156,8 +159,12 @@ export default function RegistroUso() {
     if (lecResp.data) setLecturas(lecResp.data as LecturaContador[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
-    
-    setLoading(false);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -651,6 +658,7 @@ export default function RegistroUso() {
           </div>
         </div>
 
+        {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="hover-lift">
@@ -830,6 +838,7 @@ export default function RegistroUso() {
             />
           </TabsContent>
         </Tabs>
+        </>}
       </div>
     </DashboardLayout>
   );
