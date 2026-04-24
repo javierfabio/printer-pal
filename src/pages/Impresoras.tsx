@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning } from 'lucide-react';
+import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
@@ -84,6 +84,7 @@ export default function Impresoras() {
   const [historialOpen, setHistorialOpen] = useState(false);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
   const [selectedPrinterName, setSelectedPrinterName] = useState<string>('');
+  const [historialInitialTab, setHistorialInitialTab] = useState<string>('general');
   const [repairOutOpen, setRepairOutOpen] = useState(false);
   const [repairReturnOpen, setRepairReturnOpen] = useState(false);
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
@@ -277,15 +278,29 @@ export default function Impresoras() {
     else if (data) { setFiliales([...filiales, data]); setFormData({ ...formData, filial_id: data.id }); setNewFilialOpen(false); setNewFilialName(''); toast({ title: 'Éxito', description: 'Filial creada' }); }
   };
 
-  const openHistorial = (printer: Impresora) => { setSelectedPrinterId(printer.id); setSelectedPrinterName(printer.nombre); setHistorialOpen(true); };
+  const openHistorial = (printer: Impresora) => {
+    setSelectedPrinterId(printer.id);
+    setSelectedPrinterName(`${printer.nombre} — ${printer.serie}`);
+    setHistorialInitialTab(printer.estado === 'en_reparacion' ? 'reparaciones' : 'general');
+    setHistorialOpen(true);
+  };
 
   const filteredImpresoras = useMemo(() => {
     const filialFromQuery = searchParams.get('filial');
     return impresoras.filter(imp => {
-      const matchesSearch =
-        imp.nombre.toLowerCase().includes(search.toLowerCase()) ||
-        imp.serie.toLowerCase().includes(search.toLowerCase()) ||
-        imp.modelo.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const sectorNombre = (imp as any).sectores?.nombre?.toLowerCase() || '';
+      const filialNombre = (imp as any).filiales?.nombre?.toLowerCase() || '';
+      const matchesSearch = !search || (
+        imp.nombre.toLowerCase().includes(q) ||
+        imp.serie.toLowerCase().includes(q) ||
+        imp.modelo.toLowerCase().includes(q) ||
+        sectorNombre.includes(q) ||
+        filialNombre.includes(q) ||
+        imp.tipo_consumo.toLowerCase().includes(q) ||
+        imp.tipo_impresion.toLowerCase().includes(q) ||
+        imp.estado.toLowerCase().includes(q)
+      );
       const matchesSinLectura = !filterSinLectura || printersSinLectura.has(imp.id);
       const matchesFilial = !filialFromQuery || imp.filial_id === filialFromQuery;
       return matchesSearch && matchesSinLectura && matchesFilial;
