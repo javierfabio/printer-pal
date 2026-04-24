@@ -876,6 +876,9 @@ export default function Piezas() {
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline">{TIPO_PIEZA_LABELS[pieza.tipo_pieza]}</Badge>
                                   <span className="font-semibold">{pieza.nombre_pieza}</span>
+                                  {pieza.id.startsWith('virtual_') && (
+                                    <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/40">Auto</Badge>
+                                  )}
                                 </div>
                                 <p className="text-sm text-muted-foreground">
                                   Impresora: <strong>{pieza.impresoras?.nombre}</strong> ({pieza.impresoras?.serie})
@@ -925,6 +928,7 @@ export default function Piezas() {
                                   variant="ghost"
                                   onClick={() => openEditPiezaDialog(pieza)}
                                   className="gap-1"
+                                  disabled={pieza.id.startsWith('virtual_')}
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </Button>
@@ -933,6 +937,8 @@ export default function Piezas() {
                                   variant="outline"
                                   onClick={() => openCambioDialog(pieza)}
                                   className="gap-2"
+                                  disabled={pieza.id.startsWith('virtual_')}
+                                  title={pieza.id.startsWith('virtual_') ? 'Instalá esta pieza manualmente para registrar el cambio' : ''}
                                 >
                                   <RefreshCw className="w-4 h-4" />
                                   Cambiar
