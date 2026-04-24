@@ -37,9 +37,10 @@ interface PrinterHistoryDialogProps {
   printerName?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTab?: string;
 }
 
-export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChange }: PrinterHistoryDialogProps) {
+export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChange, initialTab = 'general' }: PrinterHistoryDialogProps) {
   const [loading, setLoading] = useState(false);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [locationEvents, setLocationEvents] = useState<LocationEvent[]>([]);
@@ -188,7 +189,7 @@ export function PrinterHistoryDialog({ printerId, printerName, open, onOpenChang
           </DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="general" className="w-full">
+        <Tabs key={initialTab + (printerId || '')} defaultValue={initialTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general">Cambios, lecturas y piezas</TabsTrigger>
             <TabsTrigger value="reparaciones" className="gap-1"><Wrench className="w-4 h-4" />Reparaciones</TabsTrigger>

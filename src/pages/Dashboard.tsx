@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Printer, CheckCircle, Wrench, TrendingUp, Activity, FileText, BarChart3,
-  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign, ArrowUp, ArrowDown, Minus
+  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign, ArrowUp, ArrowDown, Minus, Calendar
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -86,6 +86,16 @@ export default function Dashboard() {
   const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [ahora, setAhora] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setAhora(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const hora = ahora.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fechaCompleta = ahora.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const saludo = ahora.getHours() < 12 ? 'Buenos días' : ahora.getHours() < 18 ? 'Buenas tardes' : 'Buenas noches';
 
   const fetchData = async () => {
       setLoading(true);
@@ -248,9 +258,62 @@ export default function Dashboard() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold">Panel de Control</h1>
-            <p className="text-muted-foreground">Bienvenido, {user?.user_metadata?.full_name || user?.email}</p>
+            <p className="text-muted-foreground">
+              {saludo}, {user?.user_metadata?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuario'}
+            </p>
           </div>
-          <Button onClick={() => navigate('/dashboard/registro-uso')} className="gap-2"><TrendingUp className="w-4 h-4" />Registrar Lectura</Button>
+          <div className="flex items-center gap-3">
+            <Card className="bg-muted/30 border-border/50">
+              <CardContent className="py-2 px-4 text-right">
+                <div className="text-2xl font-mono font-bold tracking-wider text-primary">{hora}</div>
+                <div className="text-xs text-muted-foreground capitalize">{fechaCompleta}</div>
+              </CardContent>
+            </Card>
+            <Button onClick={() => navigate('/dashboard/registro-uso')} className="gap-2"><TrendingUp className="w-4 h-4" />Registrar Lectura</Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="py-3 px-4 flex items-center gap-3">
+              <Calendar className="w-8 h-8 text-primary opacity-70" />
+              <div>
+                <p className="text-xs text-muted-foreground">Hoy</p>
+                <p className="font-semibold capitalize text-sm">{ahora.toLocaleDateString('es', { weekday: 'long' })}</p>
+                <p className="text-xs text-muted-foreground">{ahora.toLocaleDateString('es', { day: 'numeric', month: 'short' })}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-muted/30">
+            <CardContent className="py-3 px-4 flex items-center gap-3">
+              <Clock className="w-8 h-8 text-muted-foreground opacity-70" />
+              <div>
+                <p className="text-xs text-muted-foreground">Semana</p>
+                <p className="font-semibold text-sm">#{Math.ceil((ahora.getTime() - new Date(ahora.getFullYear(), 0, 1).getTime()) / 604800000)}</p>
+                <p className="text-xs text-muted-foreground">del año {ahora.getFullYear()}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-muted/30">
+            <CardContent className="py-3 px-4 flex items-center gap-3">
+              <Activity className="w-8 h-8 text-muted-foreground opacity-70" />
+              <div>
+                <p className="text-xs text-muted-foreground">Mes actual</p>
+                <p className="font-semibold text-sm capitalize">{ahora.toLocaleDateString('es', { month: 'long' })}</p>
+                <p className="text-xs text-muted-foreground">Día {ahora.getDate()} de {new Date(ahora.getFullYear(), ahora.getMonth() + 1, 0).getDate()}</p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-success/5 border-success/20">
+            <CardContent className="py-3 px-4 flex items-center gap-3">
+              <Printer className="w-8 h-8 text-success opacity-70" />
+              <div>
+                <p className="text-xs text-muted-foreground">Flota activa</p>
+                <p className="font-semibold text-sm">{stats.activas} <span className="text-muted-foreground font-normal">/ {stats.total}</span></p>
+                <p className="text-xs text-muted-foreground">{stats.enReparacion > 0 ? `${stats.enReparacion} en reparación` : 'Sin equipos en reparación'}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">

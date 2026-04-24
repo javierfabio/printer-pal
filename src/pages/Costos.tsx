@@ -29,6 +29,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
+import { Badge } from '@/components/ui/badge';
 
 interface PrecioModelo {
   id?: string;
@@ -74,6 +75,7 @@ export default function Costos() {
   const [impresoras, setImpresoras] = useState<ImpresoraBasic[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
+  const [lecturas, setLecturas] = useState<Array<{ impresora_id: string; contador_negro: number | null; contador_color: number | null; fecha_lectura: string }>>([]);
 
   // New price form
   const [newModelo, setNewModelo] = useState('');
@@ -95,12 +97,13 @@ export default function Costos() {
     setLoading(true);
     setFetchError(null);
     try {
-    const [precResp, repResp, impResp, secResp, filResp] = await Promise.all([
+    const [precResp, repResp, impResp, secResp, filResp, lectResp] = await Promise.all([
       supabase.from('precios_modelo').select('*').order('modelo'),
       supabase.from('costos_reparacion').select('*').order('tipo_reparacion'),
       supabase.from('impresoras').select('id, nombre, modelo, serie, tipo_impresion, sector_id, filial_id, contador_negro_actual, contador_color_actual, contador_negro_inicial, contador_color_inicial').eq('estado', 'activa'),
       supabase.from('sectores').select('id, nombre').eq('activo', true),
       supabase.from('filiales').select('id, nombre').eq('activo', true),
+      supabase.from('lecturas_contadores').select('impresora_id, contador_negro, contador_color, fecha_lectura').order('fecha_lectura', { ascending: true }),
     ]);
 
     if (precResp.data) setPreciosModelo(precResp.data as PrecioModelo[]);
@@ -108,6 +111,7 @@ export default function Costos() {
     if (impResp.data) setImpresoras(impResp.data as ImpresoraBasic[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
+    if (lectResp.data) setLecturas(lectResp.data as any[]);
     } catch (error) {
       console.error('Error al cargar datos:', error);
       setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
@@ -167,16 +171,33 @@ export default function Costos() {
   };
 
   // Calculate cost per printer based on model prices
+  const getPaginasReales = (impId: string, cnAct: number, ccAct: number, cnIni: number, ccIni: number) => {
+    const lecturasImp = lecturas.filter(l => l.impresora_id === impId);
+    if (lecturasImp.length >= 2) {
+      const primera = lecturasImp[0];
+      const ultima = lecturasImp[lecturasImp.length - 1];
+      return {
+        paginasBN: Math.max(0, (ultima.contador_negro || 0) - (primera.contador_negro || 0)),
+        paginasColor: Math.max(0, (ultima.contador_color || 0) - (primera.contador_color || 0)),
+        sinLecturas: false,
+      };
+    }
+    return {
+      paginasBN: Math.max(0, cnAct - cnIni),
+      paginasColor: Math.max(0, ccAct - ccIni),
+      sinLecturas: lecturasImp.length < 2,
+    };
+  };
+
   const printerCosts = impresoras.map(imp => {
-    const paginasBN = Math.max(0, imp.contador_negro_actual - imp.contador_negro_inicial);
-    const paginasColor = Math.max(0, imp.contador_color_actual - imp.contador_color_inicial);
+    const { paginasBN, paginasColor, sinLecturas } = getPaginasReales(imp.id, imp.contador_negro_actual, imp.contador_color_actual, imp.contador_negro_inicial, imp.contador_color_inicial);
     const totalPages = paginasBN + paginasColor;
     const precio = getPrecio(imp.modelo);
     const costoBN = paginasBN * (precio?.precio_bn || 0);
-    const costoColor = paginasColor * (precio?.precio_color || 0);
+    const costoColor = paginasColor * (precio?.precio_color || precio?.precio_bn || 0);
     const totalCost = costoBN + costoColor;
     const costPerPage = totalPages > 0 ? totalCost / totalPages : 0;
-    return { ...imp, paginasBN, paginasColor, totalPages, costoBN, costoColor, totalCost, costPerPage };
+    return { ...imp, paginasBN, paginasColor, totalPages, costoBN, costoColor, totalCost, costPerPage, sinLecturas };
   }).sort((a, b) => b.totalCost - a.totalCost);
 
   const getSectorName = (id: string | null) => sectores.find(s => s.id === id)?.nombre || '-';
@@ -511,7 +532,7 @@ export default function Costos() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Costo por Impresora</CardTitle>
-                    <CardDescription>Cálculo basado en precios por modelo × páginas impresas</CardDescription>
+                    <CardDescription>Cálculo basado en lecturas registradas × precio por página del modelo</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
@@ -535,8 +556,12 @@ export default function Costos() {
                               <TableCell>{p.modelo}</TableCell>
                               <TableCell className="text-muted-foreground">{getFilialName(p.filial_id)}</TableCell>
                               <TableCell className="text-muted-foreground">{getSectorName(p.sector_id)}</TableCell>
-                              <TableCell className="text-right font-mono">{p.paginasBN.toLocaleString()}</TableCell>
-                              <TableCell className="text-right font-mono">{p.paginasColor.toLocaleString()}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                {p.sinLecturas ? <Badge variant="outline" className="text-[10px] border-warning text-warning">Sin lecturas</Badge> : p.paginasBN.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {p.sinLecturas ? <Badge variant="outline" className="text-[10px] border-warning text-warning">Sin lecturas</Badge> : p.paginasColor.toLocaleString()}
+                              </TableCell>
                               <TableCell className="text-right font-mono font-semibold">{p.totalCost.toLocaleString()} gs</TableCell>
                               <TableCell className="text-right font-mono">{p.costPerPage.toFixed(2)} gs</TableCell>
                             </TableRow>

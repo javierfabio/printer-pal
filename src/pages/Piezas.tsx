@@ -25,7 +25,8 @@ import {
   Download,
   FileText,
   Package,
-  Search
+  Search,
+  Info
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -220,11 +221,53 @@ export default function Piezas() {
         .order('nombre_pieza'),
     ]);
 
-    if (piezasResp.data) setPiezas(piezasResp.data as PiezaImpresora[]);
     if (historialResp.data) setHistorial(historialResp.data as HistorialPieza[]);
     if (configResp.data) setConfiguracion(configResp.data as ConfiguracionPieza[]);
     if (impResp.data) setImpresoras(impResp.data);
     if (catResp.data) setCatalogo(catResp.data as PiezaCatalogo[]);
+
+    // Generar piezas virtuales desde el catálogo cuando no hay instaladas
+    if (piezasResp.data && catResp.data && impResp.data) {
+      const piezasInstaladas = piezasResp.data as PiezaImpresora[];
+      const catalogo = catResp.data as PiezaCatalogo[];
+      const impresorasData = impResp.data;
+      const piezasVirtuales: PiezaImpresora[] = [];
+
+      impresorasData.forEach((imp: any) => {
+        const piezasDelModelo = catalogo.filter(cat =>
+          cat.modelos_vinculados &&
+          cat.modelos_vinculados.some((m: string) => m.trim().toLowerCase() === imp.modelo.toLowerCase())
+        );
+        piezasDelModelo.forEach(cat => {
+          const yaInstalada = piezasInstaladas.some(p =>
+            p.impresora_id === imp.id && p.tipo_pieza === cat.tipo_pieza
+          );
+          if (!yaInstalada) {
+            piezasVirtuales.push({
+              id: `virtual_${imp.id}_${cat.tipo_pieza}`,
+              impresora_id: imp.id,
+              tipo_pieza: cat.tipo_pieza as TipoPieza,
+              nombre_pieza: cat.nombre_pieza,
+              vida_util_estimada: cat.vida_util_estimada,
+              contador_instalacion: (imp.contador_negro_actual || 0) + (imp.contador_color_actual || 0),
+              paginas_consumidas: 0,
+              fecha_instalacion: new Date().toISOString(),
+              activo: true,
+              notas: 'Pieza generada automáticamente desde catálogo',
+              impresoras: {
+                nombre: imp.nombre,
+                serie: imp.serie,
+                contador_negro_actual: imp.contador_negro_actual,
+                contador_color_actual: imp.contador_color_actual,
+              },
+            });
+          }
+        });
+      });
+      setPiezas([...piezasInstaladas, ...piezasVirtuales]);
+    } else if (piezasResp.data) {
+      setPiezas(piezasResp.data as PiezaImpresora[]);
+    }
     } catch (error) {
       console.error('Error al cargar datos:', error);
       setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
@@ -794,6 +837,13 @@ export default function Piezas() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-info/10 border border-info/30 mb-4 text-sm">
+                  <Info className="w-4 h-4 text-info flex-shrink-0 mt-0.5" />
+                  <p className="text-muted-foreground">
+                    Las piezas marcadas con <Badge variant="outline" className="text-[10px] mx-1">Auto</Badge>
+                    fueron generadas automáticamente desde el catálogo. Instalá una pieza manualmente para comenzar a registrar su desgaste real.
+                  </p>
+                </div>
                 {loading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -826,6 +876,9 @@ export default function Piezas() {
                                 <div className="flex items-center gap-2">
                                   <Badge variant="outline">{TIPO_PIEZA_LABELS[pieza.tipo_pieza]}</Badge>
                                   <span className="font-semibold">{pieza.nombre_pieza}</span>
+                                  {pieza.id.startsWith('virtual_') && (
+                                    <Badge variant="outline" className="text-[10px] text-muted-foreground border-muted-foreground/40">Auto</Badge>
+                                  )}
                                 </div>
                                 <p className="text-sm text-muted-foreground">
                                   Impresora: <strong>{pieza.impresoras?.nombre}</strong> ({pieza.impresoras?.serie})
@@ -875,6 +928,7 @@ export default function Piezas() {
                                   variant="ghost"
                                   onClick={() => openEditPiezaDialog(pieza)}
                                   className="gap-1"
+                                  disabled={pieza.id.startsWith('virtual_')}
                                 >
                                   <Pencil className="w-4 h-4" />
                                 </Button>
@@ -883,6 +937,8 @@ export default function Piezas() {
                                   variant="outline"
                                   onClick={() => openCambioDialog(pieza)}
                                   className="gap-2"
+                                  disabled={pieza.id.startsWith('virtual_')}
+                                  title={pieza.id.startsWith('virtual_') ? 'Instalá esta pieza manualmente para registrar el cambio' : ''}
                                 >
                                   <RefreshCw className="w-4 h-4" />
                                   Cambiar
