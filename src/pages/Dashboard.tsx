@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { 
   Printer, CheckCircle, Wrench, TrendingUp, Activity, FileText, BarChart3,
-  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign, ArrowUp, ArrowDown, Minus
+  ArrowUpRight, Clock, Package, AlertTriangle, FileWarning, DollarSign, ArrowUp, ArrowDown, Minus, Calendar
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
@@ -86,6 +86,16 @@ export default function Dashboard() {
   const [modelosSinPrecio, setModelosSinPrecio] = useState<{ modelo: string; count: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [ahora, setAhora] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setAhora(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const hora = ahora.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fechaCompleta = ahora.toLocaleDateString('es', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const saludo = ahora.getHours() < 12 ? 'Buenos días' : ahora.getHours() < 18 ? 'Buenas tardes' : 'Buenas noches';
 
   const fetchData = async () => {
       setLoading(true);
