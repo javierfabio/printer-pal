@@ -584,7 +584,7 @@ export default function Impresoras() {
           </DialogContent>
         </Dialog>
 
-        <PrinterHistoryDialog printerId={selectedPrinterId} printerName={selectedPrinterName} open={historialOpen} onOpenChange={setHistorialOpen} />
+        <PrinterHistoryDialog printerId={selectedPrinterId} printerName={selectedPrinterName} open={historialOpen} onOpenChange={setHistorialOpen} initialTab={historialInitialTab} />
 
         {pendingRepairPrinter && (
           <>
