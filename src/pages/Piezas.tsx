@@ -837,6 +837,13 @@ export default function Piezas() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="flex items-start gap-2 p-3 rounded-lg bg-info/10 border border-info/30 mb-4 text-sm">
+                  <Info className="w-4 h-4 text-info flex-shrink-0 mt-0.5" />
+                  <p className="text-muted-foreground">
+                    Las piezas marcadas con <Badge variant="outline" className="text-[10px] mx-1">Auto</Badge>
+                    fueron generadas automáticamente desde el catálogo. Instalá una pieza manualmente para comenzar a registrar su desgaste real.
+                  </p>
+                </div>
                 {loading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 animate-spin text-primary" />
