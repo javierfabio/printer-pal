@@ -171,16 +171,33 @@ export default function Costos() {
   };
 
   // Calculate cost per printer based on model prices
+  const getPaginasReales = (impId: string, cnAct: number, ccAct: number, cnIni: number, ccIni: number) => {
+    const lecturasImp = lecturas.filter(l => l.impresora_id === impId);
+    if (lecturasImp.length >= 2) {
+      const primera = lecturasImp[0];
+      const ultima = lecturasImp[lecturasImp.length - 1];
+      return {
+        paginasBN: Math.max(0, (ultima.contador_negro || 0) - (primera.contador_negro || 0)),
+        paginasColor: Math.max(0, (ultima.contador_color || 0) - (primera.contador_color || 0)),
+        sinLecturas: false,
+      };
+    }
+    return {
+      paginasBN: Math.max(0, cnAct - cnIni),
+      paginasColor: Math.max(0, ccAct - ccIni),
+      sinLecturas: lecturasImp.length < 2,
+    };
+  };
+
   const printerCosts = impresoras.map(imp => {
-    const paginasBN = Math.max(0, imp.contador_negro_actual - imp.contador_negro_inicial);
-    const paginasColor = Math.max(0, imp.contador_color_actual - imp.contador_color_inicial);
+    const { paginasBN, paginasColor, sinLecturas } = getPaginasReales(imp.id, imp.contador_negro_actual, imp.contador_color_actual, imp.contador_negro_inicial, imp.contador_color_inicial);
     const totalPages = paginasBN + paginasColor;
     const precio = getPrecio(imp.modelo);
     const costoBN = paginasBN * (precio?.precio_bn || 0);
-    const costoColor = paginasColor * (precio?.precio_color || 0);
+    const costoColor = paginasColor * (precio?.precio_color || precio?.precio_bn || 0);
     const totalCost = costoBN + costoColor;
     const costPerPage = totalPages > 0 ? totalCost / totalPages : 0;
-    return { ...imp, paginasBN, paginasColor, totalPages, costoBN, costoColor, totalCost, costPerPage };
+    return { ...imp, paginasBN, paginasColor, totalPages, costoBN, costoColor, totalCost, costPerPage, sinLecturas };
   }).sort((a, b) => b.totalCost - a.totalCost);
 
   const getSectorName = (id: string | null) => sectores.find(s => s.id === id)?.nombre || '-';
