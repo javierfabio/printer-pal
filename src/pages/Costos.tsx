@@ -532,7 +532,7 @@ export default function Costos() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Costo por Impresora</CardTitle>
-                    <CardDescription>Cálculo basado en precios por modelo × páginas impresas</CardDescription>
+                    <CardDescription>Cálculo basado en lecturas registradas × precio por página del modelo</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="overflow-x-auto">
@@ -556,8 +556,12 @@ export default function Costos() {
                               <TableCell>{p.modelo}</TableCell>
                               <TableCell className="text-muted-foreground">{getFilialName(p.filial_id)}</TableCell>
                               <TableCell className="text-muted-foreground">{getSectorName(p.sector_id)}</TableCell>
-                              <TableCell className="text-right font-mono">{p.paginasBN.toLocaleString()}</TableCell>
-                              <TableCell className="text-right font-mono">{p.paginasColor.toLocaleString()}</TableCell>
+                              <TableCell className="text-right font-mono">
+                                {p.sinLecturas ? <Badge variant="outline" className="text-[10px] border-warning text-warning">Sin lecturas</Badge> : p.paginasBN.toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-right font-mono">
+                                {p.sinLecturas ? <Badge variant="outline" className="text-[10px] border-warning text-warning">Sin lecturas</Badge> : p.paginasColor.toLocaleString()}
+                              </TableCell>
                               <TableCell className="text-right font-mono font-semibold">{p.totalCost.toLocaleString()} gs</TableCell>
                               <TableCell className="text-right font-mono">{p.costPerPage.toFixed(2)} gs</TableCell>
                             </TableRow>
