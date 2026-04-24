@@ -29,6 +29,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
+import { Badge } from '@/components/ui/badge';
 
 interface PrecioModelo {
   id?: string;
@@ -74,6 +75,7 @@ export default function Costos() {
   const [impresoras, setImpresoras] = useState<ImpresoraBasic[]>([]);
   const [sectores, setSectores] = useState<Sector[]>([]);
   const [filiales, setFiliales] = useState<Filial[]>([]);
+  const [lecturas, setLecturas] = useState<Array<{ impresora_id: string; contador_negro: number | null; contador_color: number | null; fecha_lectura: string }>>([]);
 
   // New price form
   const [newModelo, setNewModelo] = useState('');
@@ -95,12 +97,13 @@ export default function Costos() {
     setLoading(true);
     setFetchError(null);
     try {
-    const [precResp, repResp, impResp, secResp, filResp] = await Promise.all([
+    const [precResp, repResp, impResp, secResp, filResp, lectResp] = await Promise.all([
       supabase.from('precios_modelo').select('*').order('modelo'),
       supabase.from('costos_reparacion').select('*').order('tipo_reparacion'),
       supabase.from('impresoras').select('id, nombre, modelo, serie, tipo_impresion, sector_id, filial_id, contador_negro_actual, contador_color_actual, contador_negro_inicial, contador_color_inicial').eq('estado', 'activa'),
       supabase.from('sectores').select('id, nombre').eq('activo', true),
       supabase.from('filiales').select('id, nombre').eq('activo', true),
+      supabase.from('lecturas_contadores').select('impresora_id, contador_negro, contador_color, fecha_lectura').order('fecha_lectura', { ascending: true }),
     ]);
 
     if (precResp.data) setPreciosModelo(precResp.data as PrecioModelo[]);
@@ -108,6 +111,7 @@ export default function Costos() {
     if (impResp.data) setImpresoras(impResp.data as ImpresoraBasic[]);
     if (secResp.data) setSectores(secResp.data);
     if (filResp.data) setFiliales(filResp.data);
+    if (lectResp.data) setLecturas(lectResp.data as any[]);
     } catch (error) {
       console.error('Error al cargar datos:', error);
       setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
