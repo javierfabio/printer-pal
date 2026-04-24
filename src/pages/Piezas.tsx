@@ -221,11 +221,53 @@ export default function Piezas() {
         .order('nombre_pieza'),
     ]);
 
-    if (piezasResp.data) setPiezas(piezasResp.data as PiezaImpresora[]);
     if (historialResp.data) setHistorial(historialResp.data as HistorialPieza[]);
     if (configResp.data) setConfiguracion(configResp.data as ConfiguracionPieza[]);
     if (impResp.data) setImpresoras(impResp.data);
     if (catResp.data) setCatalogo(catResp.data as PiezaCatalogo[]);
+
+    // Generar piezas virtuales desde el catálogo cuando no hay instaladas
+    if (piezasResp.data && catResp.data && impResp.data) {
+      const piezasInstaladas = piezasResp.data as PiezaImpresora[];
+      const catalogo = catResp.data as PiezaCatalogo[];
+      const impresorasData = impResp.data;
+      const piezasVirtuales: PiezaImpresora[] = [];
+
+      impresorasData.forEach((imp: any) => {
+        const piezasDelModelo = catalogo.filter(cat =>
+          cat.modelos_vinculados &&
+          cat.modelos_vinculados.some((m: string) => m.trim().toLowerCase() === imp.modelo.toLowerCase())
+        );
+        piezasDelModelo.forEach(cat => {
+          const yaInstalada = piezasInstaladas.some(p =>
+            p.impresora_id === imp.id && p.tipo_pieza === cat.tipo_pieza
+          );
+          if (!yaInstalada) {
+            piezasVirtuales.push({
+              id: `virtual_${imp.id}_${cat.tipo_pieza}`,
+              impresora_id: imp.id,
+              tipo_pieza: cat.tipo_pieza as TipoPieza,
+              nombre_pieza: cat.nombre_pieza,
+              vida_util_estimada: cat.vida_util_estimada,
+              contador_instalacion: (imp.contador_negro_actual || 0) + (imp.contador_color_actual || 0),
+              paginas_consumidas: 0,
+              fecha_instalacion: new Date().toISOString(),
+              activo: true,
+              notas: 'Pieza generada automáticamente desde catálogo',
+              impresoras: {
+                nombre: imp.nombre,
+                serie: imp.serie,
+                contador_negro_actual: imp.contador_negro_actual,
+                contador_color_actual: imp.contador_color_actual,
+              },
+            });
+          }
+        });
+      });
+      setPiezas([...piezasInstaladas, ...piezasVirtuales]);
+    } else if (piezasResp.data) {
+      setPiezas(piezasResp.data as PiezaImpresora[]);
+    }
     } catch (error) {
       console.error('Error al cargar datos:', error);
       setFetchError('No se pudieron cargar los datos. Verificá tu conexión.');
