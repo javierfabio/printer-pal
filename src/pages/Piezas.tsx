@@ -25,7 +25,8 @@ import {
   Download,
   FileText,
   Package,
-  Search
+  Search,
+  Info
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
