@@ -465,7 +465,7 @@ export default function Impresoras() {
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Buscar por nombre, serie o modelo..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
+                <Input placeholder="Buscar por nombre, serie, modelo, sector o filial..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10" />
               </div>
               <Button
                 variant={filterSinLectura ? 'default' : 'outline'}
@@ -508,10 +508,23 @@ export default function Impresoras() {
                   </TableHeader>
                   <TableBody>
                     {filteredImpresoras.map((imp) => (
-                      <TableRow key={imp.id}>
+                      <TableRow
+                        key={imp.id}
+                        className={cn(
+                          "hover:bg-muted/50 transition-colors cursor-pointer",
+                          imp.estado === 'en_reparacion' && "bg-warning/5 border-l-4 border-l-warning",
+                          imp.estado === 'baja' && "opacity-50",
+                        )}
+                        onClick={() => openHistorial(imp)}
+                      >
                         <TableCell className="font-mono text-sm">{imp.serie}</TableCell>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
+                            {imp.estado === 'en_reparacion' && (
+                              <span className="inline-flex items-center gap-1 text-[10px] text-warning font-medium">
+                                <Wrench className="w-3 h-3" />En reparación
+                              </span>
+                            )}
                             <span>{imp.nombre}</span>
                             {printersSinLectura.has(imp.id) && (
                               <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
@@ -536,7 +549,7 @@ export default function Impresoras() {
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                           <div className="flex justify-end gap-1">
                             {isAdmin && <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
                             <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
