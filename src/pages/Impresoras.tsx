@@ -378,6 +378,25 @@ export default function Impresoras() {
           <div className="flex gap-2">
             <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV</Button>
             <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={async () => {
+                if (filteredImpresoras.length === 0) return;
+                toast({ title: 'Generando QRs...', description: `${filteredImpresoras.length} etiquetas` });
+                await generateQRBulkPDF(filteredImpresoras.map((imp: any) => ({
+                  id: imp.id,
+                  serie: imp.serie,
+                  nombre: imp.nombre,
+                  modelo: imp.modelo,
+                  filial: imp.filiales?.nombre || '',
+                  sector: imp.sectores?.nombre || '',
+                })));
+              }}
+            >
+              <QrCode className="w-4 h-4" />
+              QR ({filteredImpresoras.length})
+            </Button>
             {isAdmin && (
               <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
@@ -651,6 +670,16 @@ export default function Impresoras() {
                           <div className="flex justify-end gap-1">
                             {isAdmin && <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
                             <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async () => {
+                              await generateQRPDF({
+                                id: imp.id,
+                                serie: imp.serie,
+                                nombre: imp.nombre,
+                                modelo: imp.modelo,
+                                filial: (imp as any).filiales?.nombre || '',
+                                sector: (imp as any).sectores?.nombre || '',
+                              });
+                            }}><QrCode className="w-4 h-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
