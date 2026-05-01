@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { PartsAlertsProvider } from "@/contexts/PartsAlertsContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
+import { RouteMemory } from "@/components/RouteMemory";
 
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
@@ -19,6 +20,7 @@ import RegistroUso from "./pages/RegistroUso";
 import Historial from "./pages/Historial";
 import Usuarios from "./pages/Usuarios";
 import Costos from "./pages/Costos";
+import ScanQR from "./pages/ScanQR";
 
 import NotFound from "./pages/NotFound";
 
@@ -33,9 +35,11 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <RouteMemory />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
+                <Route path="/scan/:id" element={<ScanQR />} />
                 <Route
                   path="/dashboard"
                   element={
