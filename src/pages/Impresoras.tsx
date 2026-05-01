@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench } from 'lucide-react';
+import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench, X, QrCode } from 'lucide-react';
+import { generateQRPDF, generateQRBulkPDF } from '@/lib/qrUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
@@ -109,6 +110,22 @@ export default function Impresoras() {
   const [newFilialOpen, setNewFilialOpen] = useState(false);
   const [newSectorName, setNewSectorName] = useState('');
   const [newFilialName, setNewFilialName] = useState('');
+
+  const [sectorSearch, setSectorSearch] = useState('');
+  const [filialSearch, setFilialSearch] = useState('');
+
+  const sectoresFiltrados = useMemo(() =>
+    sectores
+      .filter(s => s.nombre.toLowerCase().includes(sectorSearch.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    [sectores, sectorSearch]
+  );
+  const filialesFiltradas = useMemo(() =>
+    filiales
+      .filter(f => f.nombre.toLowerCase().includes(filialSearch.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    [filiales, filialSearch]
+  );
 
   useEffect(() => { fetchData(); }, []);
 
@@ -361,12 +378,35 @@ export default function Impresoras() {
           <div className="flex gap-2">
             <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV</Button>
             <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+            <Button
+              variant="outline"
+              className="gap-2"
+              onClick={async () => {
+                if (filteredImpresoras.length === 0) return;
+                toast({ title: 'Generando QRs...', description: `${filteredImpresoras.length} etiquetas` });
+                await generateQRBulkPDF(filteredImpresoras.map((imp: any) => ({
+                  id: imp.id,
+                  serie: imp.serie,
+                  nombre: imp.nombre,
+                  modelo: imp.modelo,
+                  filial: imp.filiales?.nombre || '',
+                  sector: imp.sectores?.nombre || '',
+                })));
+              }}
+            >
+              <QrCode className="w-4 h-4" />
+              QR ({filteredImpresoras.length})
+            </Button>
             {isAdmin && (
               <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2"><Plus className="w-4 h-4" />Nueva Impresora</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                <DialogContent
+                  className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                  onInteractOutside={(e) => e.preventDefault()}
+                  onEscapeKeyDown={(e) => e.preventDefault()}
+                >
                   <DialogHeader>
                     <DialogTitle>{editingPrinter ? 'Editar Impresora' : 'Registrar Nueva Impresora'}</DialogTitle>
                   </DialogHeader>
@@ -407,16 +447,78 @@ export default function Impresoras() {
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between items-center"><Label>Filial</Label><Button type="button" variant="ghost" size="sm" onClick={() => setNewFilialOpen(true)}>+ Nueva</Button></div>
-                        <Select value={formData.filial_id} onValueChange={v => setFormData({ ...formData, filial_id: v })}>
+                        <Select
+                          value={formData.filial_id}
+                          onValueChange={v => setFormData({ ...formData, filial_id: v })}
+                          onOpenChange={() => setFilialSearch('')}
+                        >
                           <SelectTrigger><SelectValue placeholder="Seleccionar filial" /></SelectTrigger>
-                          <SelectContent>{filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}</SelectContent>
+                          <SelectContent className="bg-popover p-0">
+                            <div className="px-2 pt-2 pb-1 sticky top-0 bg-popover border-b border-border z-10">
+                              <div className="flex items-center gap-2 px-2 py-1 rounded-md border border-input bg-background">
+                                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                <input
+                                  placeholder="Buscar filial..."
+                                  value={filialSearch}
+                                  onChange={e => setFilialSearch(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  onKeyDown={e => e.stopPropagation()}
+                                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                  autoComplete="off"
+                                />
+                                {filialSearch && (
+                                  <button type="button" onClick={() => setFilialSearch('')} className="text-muted-foreground hover:text-foreground">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="max-h-52 overflow-y-auto py-1">
+                              {filialesFiltradas.length === 0 ? (
+                                <div className="px-3 py-3 text-sm text-muted-foreground text-center">Sin resultados para "{filialSearch}"</div>
+                              ) : (
+                                filialesFiltradas.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)
+                              )}
+                            </div>
+                          </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
                         <div className="flex justify-between items-center"><Label>Sector</Label><Button type="button" variant="ghost" size="sm" onClick={() => setNewSectorOpen(true)}>+ Nuevo</Button></div>
-                        <Select value={formData.sector_id} onValueChange={v => setFormData({ ...formData, sector_id: v })}>
+                        <Select
+                          value={formData.sector_id}
+                          onValueChange={v => setFormData({ ...formData, sector_id: v })}
+                          onOpenChange={() => setSectorSearch('')}
+                        >
                           <SelectTrigger><SelectValue placeholder="Seleccionar sector" /></SelectTrigger>
-                          <SelectContent>{sectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}</SelectContent>
+                          <SelectContent className="bg-popover p-0">
+                            <div className="px-2 pt-2 pb-1 sticky top-0 bg-popover border-b border-border z-10">
+                              <div className="flex items-center gap-2 px-2 py-1 rounded-md border border-input bg-background">
+                                <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                <input
+                                  placeholder="Buscar sector..."
+                                  value={sectorSearch}
+                                  onChange={e => setSectorSearch(e.target.value)}
+                                  onClick={e => e.stopPropagation()}
+                                  onKeyDown={e => e.stopPropagation()}
+                                  className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                                  autoComplete="off"
+                                />
+                                {sectorSearch && (
+                                  <button type="button" onClick={() => setSectorSearch('')} className="text-muted-foreground hover:text-foreground">
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <div className="max-h-52 overflow-y-auto py-1">
+                              {sectoresFiltrados.length === 0 ? (
+                                <div className="px-3 py-3 text-sm text-muted-foreground text-center">Sin resultados para "{sectorSearch}"</div>
+                              ) : (
+                                sectoresFiltrados.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)
+                              )}
+                            </div>
+                          </SelectContent>
                         </Select>
                       </div>
                       <div className="space-y-2">
@@ -449,7 +551,22 @@ export default function Impresoras() {
                       <Textarea id="descripcion" value={formData.descripcion} onChange={e => setFormData({ ...formData, descripcion: e.target.value })} placeholder="Notas adicionales..." rows={3} />
                     </div>
                     <div className="flex justify-end gap-2 pt-4">
-                      <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          const tieneDatos = formData.nombre || formData.serie || formData.modelo;
+                          if (tieneDatos && !editingPrinter) {
+                            if (window.confirm('¿Salir sin guardar? Se perderán los datos ingresados.')) {
+                              setDialogOpen(false);
+                            }
+                          } else {
+                            setDialogOpen(false);
+                          }
+                        }}
+                      >
+                        Cancelar
+                      </Button>
                       <Button type="submit" disabled={saving}>{saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingPrinter ? 'Guardar Cambios' : 'Registrar'}</Button>
                     </div>
                   </form>
@@ -553,6 +670,16 @@ export default function Impresoras() {
                           <div className="flex justify-end gap-1">
                             {isAdmin && <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
                             <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async () => {
+                              await generateQRPDF({
+                                id: imp.id,
+                                serie: imp.serie,
+                                nombre: imp.nombre,
+                                modelo: imp.modelo,
+                                filial: (imp as any).filiales?.nombre || '',
+                                sector: (imp as any).sectores?.nombre || '',
+                              });
+                            }}><QrCode className="w-4 h-4" /></Button>
                           </div>
                         </TableCell>
                       </TableRow>
