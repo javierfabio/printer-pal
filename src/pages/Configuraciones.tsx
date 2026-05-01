@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code, DatabaseBackup } from 'lucide-react';
+import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code, DatabaseBackup, LayoutDashboard } from 'lucide-react';
+import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
+import { getWidgetsConfig, saveWidgetsConfig, WIDGET_DEFAULTS, type WidgetConfig } from '@/lib/dashboardWidgets';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import JSZip from 'jszip';
 import { supabase } from '@/integrations/supabase/client';
@@ -65,6 +67,7 @@ export default function Configuraciones() {
   const [reportConfig, setReportConfig] = useState<ReportConfig>(getReportConfig());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(getSystemConfig());
   const [exportingBackup, setExportingBackup] = useState(false);
+  const [widgetsConfig, setWidgetsConfig] = useState<WidgetConfig[]>(getWidgetsConfig());
 
   const exportDatabaseBackup = async () => {
     setExportingBackup(true);
@@ -290,7 +293,14 @@ export default function Configuraciones() {
                 <div className="flex gap-2">
                   <input ref={fileInputRef} type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleLogoUpload} />
                   <Button variant="outline" size="sm" className="gap-2" onClick={() => fileInputRef.current?.click()}><Upload className="w-4 h-4" />{logoPreview ? 'Cambiar' : 'Subir'}</Button>
-                  {logoPreview && <Button variant="outline" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={handleRemoveLogo}><Trash2 className="w-4 h-4" />Eliminar</Button>}
+                  {logoPreview && (
+                    <ConfirmDeleteButton
+                      onConfirm={handleRemoveLogo}
+                      title="¿Eliminar logo corporativo?"
+                      description="El logo se eliminará del sistema y no aparecerá en los PDFs generados."
+                      showLabel
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -343,6 +353,55 @@ export default function Configuraciones() {
             <div className="flex justify-end"><Button onClick={() => { saveReportConfig(reportConfig); toast({ title: 'Guardado' }); }}>Guardar Configuración</Button></div>
           </CardContent>
         </Card>
+            </AccordionContent>
+          </AccordionItem>
+
+          <AccordionItem value="widgets" className="border rounded-lg bg-card">
+            <AccordionTrigger className="px-4 hover:no-underline">
+              <span className="flex items-center gap-2 font-semibold"><LayoutDashboard className="w-5 h-5 text-primary" />Widgets del Dashboard</span>
+            </AccordionTrigger>
+            <AccordionContent className="px-4 pb-4">
+              <Card className="border-0 shadow-none">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardDescription>Activá o desactivá cada sección del panel principal</CardDescription>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground"
+                      onClick={() => {
+                        const reset = [...WIDGET_DEFAULTS];
+                        setWidgetsConfig(reset);
+                        saveWidgetsConfig(reset);
+                        toast({ title: 'Restaurado', description: 'Widgets restaurados a valores por defecto.' });
+                      }}
+                    >
+                      Restaurar todo
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-0 p-0">
+                  {widgetsConfig.map((widget, idx) => (
+                    <div
+                      key={widget.id}
+                      className={`flex items-center justify-between px-6 py-3 ${idx !== widgetsConfig.length - 1 ? 'border-b border-border/40' : ''}`}
+                    >
+                      <div className="flex-1 min-w-0 mr-4">
+                        <p className="text-sm font-medium">{widget.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{widget.descripcion}</p>
+                      </div>
+                      <Switch
+                        checked={widget.enabled}
+                        onCheckedChange={(checked) => {
+                          const updated = widgetsConfig.map(w => w.id === widget.id ? { ...w, enabled: checked } : w);
+                          setWidgetsConfig(updated);
+                          saveWidgetsConfig(updated);
+                        }}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </AccordionContent>
           </AccordionItem>
 
