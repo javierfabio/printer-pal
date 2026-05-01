@@ -25,8 +25,13 @@ import {
   CheckCircle2,
   Package,
   Droplets,
-  Download
+  Download,
+  QrCode,
+  X,
+  Search,
 } from 'lucide-react';
+import { BrowserMultiFormatReader } from '@zxing/browser';
+import { useRef } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
@@ -124,6 +129,58 @@ export default function RegistroUso() {
   const [filterSector, setFilterSector] = useState<string>('all');
   const [filterModelo, setFilterModelo] = useState<string>('all');
   const activeTab = searchParams.get('tab') === 'sin-actividad' ? 'sin-actividad' : 'lecturas';
+
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerError, setScannerError] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+
+  const [filterSectorSearch, setFilterSectorSearch] = useState('');
+  const [filterFilialSearch, setFilterFilialSearch] = useState('');
+
+  const handleQRScan = (decodedText: string) => {
+    try {
+      // QR puede contener una URL /scan/:id o un JSON {id, serie}
+      let foundId: string | null = null;
+      let foundSerie: string | null = null;
+      const m = decodedText.match(/\/scan\/([0-9a-fA-F-]{8,})/);
+      if (m) foundId = m[1];
+      else {
+        try {
+          const data = JSON.parse(decodedText);
+          foundId = data.id || null;
+          foundSerie = data.serie || null;
+        } catch { /* not json */ }
+      }
+      const found = impresoras.find(p => (foundId && p.id === foundId) || (foundSerie && p.serie === foundSerie));
+      if (found) {
+        setSelectedPrinter(found.id);
+        setScannerOpen(false);
+        setScannerError('');
+        toast({ title: '✅ Impresora encontrada', description: `${found.nombre} — ${found.serie}` });
+      } else {
+        setScannerError('QR no reconocido en el sistema. Verificá que la impresora esté registrada.');
+      }
+    } catch {
+      setScannerError('Código QR inválido. Usá un QR generado por PrintControl.');
+    }
+  };
+
+  useEffect(() => {
+    if (!scannerOpen) {
+      readerRef.current = null;
+      return;
+    }
+    const reader = new BrowserMultiFormatReader();
+    readerRef.current = reader;
+    reader.decodeFromVideoDevice(undefined, videoRef.current!, (result) => {
+      if (result) {
+        handleQRScan(result.getText());
+      }
+    }).catch(() => setScannerError('No se pudo acceder a la cámara'));
+    return () => { readerRef.current = null; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scannerOpen]);
 
   useEffect(() => {
     fetchData();
@@ -475,7 +532,11 @@ export default function RegistroUso() {
                   Nueva Lectura
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogContent
+                className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                onInteractOutside={(e) => e.preventDefault()}
+                onEscapeKeyDown={(e) => e.preventDefault()}
+              >
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
                     <Printer className="w-5 h-5 text-primary" />
@@ -486,12 +547,46 @@ export default function RegistroUso() {
                 <form onSubmit={handleSubmit} className="space-y-5 mt-4">
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Seleccionar Impresora *</Label>
-                    <Input
-                      placeholder="Filtrar por serie, modelo, sector o filial..."
-                      value={printerSearch}
-                      onChange={e => setPrinterSearch(e.target.value)}
-                      className="h-10 mb-2"
-                    />
+                    <div className="flex gap-2 items-center mb-2">
+                      <Input
+                        placeholder="Filtrar por serie, modelo, sector o filial..."
+                        value={printerSearch}
+                        onChange={e => setPrinterSearch(e.target.value)}
+                        className="h-10 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-10 w-10 flex-shrink-0"
+                        title="Escanear código QR"
+                        onClick={() => { setScannerOpen(v => !v); setScannerError(''); }}
+                      >
+                        <QrCode className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    {scannerOpen && (
+                      <div className="rounded-lg overflow-hidden border border-border bg-black relative mb-2">
+                        <div className="absolute top-2 left-2 z-10 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                          Apuntá la cámara al QR de la impresora
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 z-10 bg-black/50 text-white hover:bg-black/70"
+                          onClick={() => setScannerOpen(false)}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                        <video ref={videoRef} className="w-full max-h-56 object-cover" />
+                        {scannerError && (
+                          <div className="px-3 py-2 bg-destructive/90 text-destructive-foreground text-xs text-center">
+                            {scannerError}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Select value={selectedPrinter} onValueChange={setSelectedPrinter}>
                       <SelectTrigger className="h-11">
                         <SelectValue placeholder="Seleccionar impresora..." />
@@ -652,7 +747,22 @@ export default function RegistroUso() {
                   )}
 
                   <div className="flex justify-end gap-2 pt-4">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const tieneDatos = selectedPrinter || contadorNegro || contadorColor || notas;
+                        if (tieneDatos) {
+                          if (window.confirm('¿Salir sin guardar? Se perderán los datos ingresados.')) {
+                            setDialogOpen(false);
+                          }
+                        } else {
+                          setDialogOpen(false);
+                        }
+                      }}
+                    >
+                      Cancelar
+                    </Button>
                     <Button type="submit" disabled={saving || !selectedPrinter} className="min-w-[120px]">
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle2 className="w-4 h-4 mr-2" />Registrar</>}
                     </Button>

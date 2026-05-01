@@ -30,6 +30,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
 
 interface PrecioModelo {
   id?: string;
@@ -431,9 +432,11 @@ export default function Costos() {
                                 <TableCell className="text-right font-mono">{p.precio_color !== null ? `${p.precio_color.toLocaleString()} gs` : '—'}</TableCell>
                                 {isAdmin && (
                                   <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" onClick={() => deletePrecio(p.id!)} className="text-destructive hover:text-destructive">
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
+                                    <ConfirmDeleteButton
+                                      onConfirm={() => deletePrecio(p.id!)}
+                                      title="¿Eliminar precio?"
+                                      description={`Se eliminará el precio del modelo "${p.modelo}". Los costos calculados quedarán incompletos.`}
+                                    />
                                   </TableCell>
                                 )}
                               </TableRow>
@@ -512,9 +515,11 @@ export default function Costos() {
                                 <TableCell className="text-right font-mono font-semibold">{r.costo.toLocaleString()} gs</TableCell>
                                 {isAdmin && (
                                   <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" onClick={() => deleteReparacion(r.id!)} className="text-destructive hover:text-destructive">
-                                      <Trash2 className="w-4 h-4" />
-                                    </Button>
+                                    <ConfirmDeleteButton
+                                      onConfirm={() => deleteReparacion(r.id!)}
+                                      title="¿Eliminar costo de reparación?"
+                                      description="Se eliminará este registro de costo. Esta acción no se puede deshacer."
+                                    />
                                   </TableCell>
                                 )}
                               </TableRow>

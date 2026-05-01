@@ -618,7 +618,11 @@ export default function Piezas() {
                   Instalar Pieza
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            <DialogContent
+              className="max-w-lg"
+              onInteractOutside={(e) => e.preventDefault()}
+              onEscapeKeyDown={(e) => e.preventDefault()}
+            >
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Wrench className="w-5 h-5 text-primary" />
