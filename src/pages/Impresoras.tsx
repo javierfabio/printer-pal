@@ -428,6 +428,42 @@ export default function Impresoras() {
           <div className="flex gap-2">
             <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV</Button>
             <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Columns className="w-4 h-4" />
+                  Columnas
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Mostrar columnas
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {COLUMN_DEFS.map(col => (
+                  <DropdownMenuCheckboxItem
+                    key={col.id}
+                    checked={visibleColumns[col.id]}
+                    onCheckedChange={() => toggleColumn(col.id)}
+                  >
+                    {col.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={Object.values(visibleColumns).every(Boolean)}
+                  onCheckedChange={() => {
+                    const allVisible = Object.fromEntries(
+                      COLUMN_DEFS.map(c => [c.id, true])
+                    ) as Record<ColumnId, boolean>;
+                    setVisibleColumns(allVisible);
+                    localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(allVisible));
+                  }}
+                >
+                  Mostrar todas
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="outline"
               className="gap-2"
