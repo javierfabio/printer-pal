@@ -9,7 +9,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench, X, QrCode } from 'lucide-react';
+import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench, X, QrCode, Columns } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { generateQRPDF, generateQRBulkPDF } from '@/lib/qrUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -26,6 +34,36 @@ import { useSearchParams } from 'react-router-dom';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 type TipoConsumo = 'tinta' | 'toner';
+
+// IDs y labels de todas las columnas configurables
+const COLUMN_DEFS = [
+  { id: 'serie',      label: 'Serie',      defaultVisible: true  },
+  { id: 'nombre',     label: 'Nombre',     defaultVisible: true  },
+  { id: 'modelo',     label: 'Modelo',     defaultVisible: true  },
+  { id: 'tipo',       label: 'Tipo',       defaultVisible: true  },
+  { id: 'consumo',    label: 'Consumo',    defaultVisible: false },
+  { id: 'filial',     label: 'Filial',     defaultVisible: true  },
+  { id: 'sector',     label: 'Sector',     defaultVisible: true  },
+  { id: 'estado',     label: 'Estado',     defaultVisible: true  },
+  { id: 'ip',         label: 'IP',         defaultVisible: false },
+  { id: 'contadores', label: 'Contadores', defaultVisible: true  },
+] as const;
+
+type ColumnId = typeof COLUMN_DEFS[number]['id'];
+
+const COLUMNS_STORAGE_KEY = 'printcontrol_impresoras_columns';
+
+function getStoredColumns(): Record<ColumnId, boolean> {
+  const defaults = Object.fromEntries(
+    COLUMN_DEFS.map(c => [c.id, c.defaultVisible])
+  ) as Record<ColumnId, boolean>;
+  try {
+    const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
+    if (saved) return { ...defaults, ...JSON.parse(saved) };
+  } catch {}
+  return defaults;
+}
+
 type TipoImpresion = 'monocromatico' | 'color';
 type EstadoImpresora = 'activa' | 'inactiva' | 'en_reparacion' | 'baja';
 
@@ -89,6 +127,18 @@ export default function Impresoras() {
   const [repairOutOpen, setRepairOutOpen] = useState(false);
   const [repairReturnOpen, setRepairReturnOpen] = useState(false);
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
+
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>(getStoredColumns);
+
+  const toggleColumn = (id: ColumnId) => {
+    setVisibleColumns(prev => {
+      const updated = { ...prev, [id]: !prev[id] };
+      localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const showCol = (id: ColumnId) => visibleColumns[id];
 
   const [formData, setFormData] = useState({
     serie: '',
