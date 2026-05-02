@@ -692,21 +692,23 @@ export default function Impresoras() {
             ) : filteredImpresoras.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground"><Printer className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>No se encontraron impresoras</p></div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto relative">
+                <Table className="w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Serie</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Modelo</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Consumo</TableHead>
-                      <TableHead>Filial</TableHead>
-                      <TableHead>Sector</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>IP</TableHead>
-                      <TableHead>Contadores</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      {showCol('serie')      && <TableHead className="whitespace-nowrap">Serie</TableHead>}
+                      {showCol('nombre')     && <TableHead className="whitespace-nowrap">Nombre</TableHead>}
+                      {showCol('modelo')     && <TableHead className="whitespace-nowrap">Modelo</TableHead>}
+                      {showCol('tipo')       && <TableHead className="whitespace-nowrap">Tipo</TableHead>}
+                      {showCol('consumo')    && <TableHead className="whitespace-nowrap">Consumo</TableHead>}
+                      {showCol('filial')     && <TableHead className="whitespace-nowrap">Filial</TableHead>}
+                      {showCol('sector')     && <TableHead className="whitespace-nowrap">Sector</TableHead>}
+                      {showCol('estado')     && <TableHead className="whitespace-nowrap">Estado</TableHead>}
+                      {showCol('ip')         && <TableHead className="whitespace-nowrap">IP</TableHead>}
+                      {showCol('contadores') && <TableHead className="whitespace-nowrap">Contadores</TableHead>}
+                      <TableHead className="text-right whitespace-nowrap sticky right-0 bg-background z-20 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.15)]">
+                        Acciones
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -720,43 +722,67 @@ export default function Impresoras() {
                         )}
                         onClick={() => openHistorial(imp)}
                       >
-                        <TableCell className="font-mono text-sm">{imp.serie}</TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {imp.estado === 'en_reparacion' && (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-warning font-medium">
-                                <Wrench className="w-3 h-3" />En reparación
-                              </span>
-                            )}
-                            <span>{imp.nombre}</span>
-                            {printersSinLectura.has(imp.id) && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
-                                <FileWarning className="w-3 h-3" />Sin registro
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{imp.modelo}</TableCell>
-                        <TableCell className="capitalize">{imp.tipo_impresion}</TableCell>
-                        <TableCell className="capitalize">{imp.tipo_consumo}</TableCell>
-                        <TableCell className="text-muted-foreground">{(imp as any).filiales?.nombre || '-'}</TableCell>
-                        <TableCell className="text-muted-foreground">{(imp as any).sectores?.nombre || '-'}</TableCell>
-                        <TableCell>{getStatusBadge(imp.estado)}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">{imp.lectura_ip ? imp.ip_address || 'Sí' : '-'}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {imp.tipo_impresion === 'color' ? (
-                              <><span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}{imp.tipo_consumo === 'toner' && (<> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>)}</>
-                            ) : (
-                              <><span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {showCol('serie') && (
+                          <TableCell className="font-mono text-sm whitespace-nowrap">{imp.serie}</TableCell>
+                        )}
+                        {showCol('nombre') && (
+                          <TableCell className="font-medium whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {imp.estado === 'en_reparacion' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-warning font-medium">
+                                  <Wrench className="w-3 h-3" />En reparación
+                                </span>
+                              )}
+                              <span>{imp.nombre}</span>
+                              {printersSinLectura.has(imp.id) && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
+                                  <FileWarning className="w-3 h-3" />Sin registro
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        {showCol('modelo') && (
+                          <TableCell className="whitespace-nowrap">{imp.modelo}</TableCell>
+                        )}
+                        {showCol('tipo') && (
+                          <TableCell className="capitalize whitespace-nowrap">{imp.tipo_impresion}</TableCell>
+                        )}
+                        {showCol('consumo') && (
+                          <TableCell className="capitalize whitespace-nowrap">{imp.tipo_consumo}</TableCell>
+                        )}
+                        {showCol('filial') && (
+                          <TableCell className="text-muted-foreground whitespace-nowrap">{(imp as any).filiales?.nombre || '-'}</TableCell>
+                        )}
+                        {showCol('sector') && (
+                          <TableCell className="text-muted-foreground whitespace-nowrap">{(imp as any).sectores?.nombre || '-'}</TableCell>
+                        )}
+                        {showCol('estado') && (
+                          <TableCell className="whitespace-nowrap">{getStatusBadge(imp.estado)}</TableCell>
+                        )}
+                        {showCol('ip') && (
+                          <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{imp.lectura_ip ? imp.ip_address || 'Sí' : '-'}</TableCell>
+                        )}
+                        {showCol('contadores') && (
+                          <TableCell className="whitespace-nowrap">
+                            <div className="text-sm">
+                              {imp.tipo_impresion === 'color' ? (
+                                <><span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}{imp.tipo_consumo === 'toner' && (<> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>)}</>
+                              ) : (
+                                <><span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        <TableCell
+                          className="text-right whitespace-nowrap sticky right-0 z-10 bg-background shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.15)]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <div className="flex justify-end gap-1">
-                            {isAdmin && <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
-                            <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async () => {
+                            {isAdmin && <Button variant="ghost" size="icon" title="Editar impresora" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
+                            <Button variant="ghost" size="icon" title="Ver historial" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async (e) => {
+                              e.stopPropagation();
                               await generateQRPDF({
                                 id: imp.id,
                                 serie: imp.serie,
