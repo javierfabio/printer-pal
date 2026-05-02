@@ -250,6 +250,20 @@ export default function RegistroUso() {
     return [...new Set(filtered.map(p => p.modelo))].sort();
   }, [filterFilial, filterSector, impresoras]);
 
+  const filialesFiltradas = useMemo(() =>
+    filiales
+      .filter(f => f.nombre.toLowerCase().includes(filterFilialSearch.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    [filiales, filterFilialSearch]
+  );
+
+  const sectoresFiltradosConBusqueda = useMemo(() =>
+    filteredSectores
+      .filter(s => s.nombre.toLowerCase().includes(filterSectorSearch.toLowerCase()))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es')),
+    [filteredSectores, filterSectorSearch]
+  );
+
   const filteredPrinters = useMemo(() => {
     let result = impresoras;
     if (filterFilial !== 'all') result = result.filter(p => p.filial_id === filterFilial);
