@@ -16,6 +16,7 @@ import { TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { usePartsAlertsContext } from '@/contexts/PartsAlertsContext';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
+import { isWidgetEnabled } from '@/lib/dashboardWidgets';
 
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
@@ -91,6 +92,13 @@ export default function Dashboard() {
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const handleStorage = () => forceUpdate(n => n + 1);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const hora = ahora.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -245,12 +253,12 @@ export default function Dashboard() {
   const readingsTrend = trendOf(stats.lecturasMes, stats.lecturasMesAnterior);
 
   const statCards = [
-     { title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
-     { title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
-     { title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
-     { title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
-     { title: 'Sin lectura este mes', value: stats.sinLecturaMes, subtitle: `de ${stats.activas} impresoras activas`, icon: FileWarning, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/registro-uso?tab=sin-actividad'), trend: null, trendLabel: '' },
-  ];
+     { widgetId: 'kpi_paginas', title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
+     { widgetId: 'kpi_impresoras', title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
+     { widgetId: 'kpi_piezas', title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
+     { widgetId: 'kpi_lecturas', title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
+     { widgetId: 'kpi_sin_lectura', title: 'Sin lectura este mes', value: stats.sinLecturaMes, subtitle: `de ${stats.activas} impresoras activas`, icon: FileWarning, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/registro-uso?tab=sin-actividad'), trend: null, trendLabel: '' },
+  ].filter(card => isWidgetEnabled(card.widgetId));
 
   return (
     <DashboardLayout>
@@ -263,16 +271,19 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Card className="bg-muted/30 border-border/50">
-              <CardContent className="py-2 px-4 text-right">
-                <div className="text-2xl font-mono font-bold tracking-wider text-primary">{hora}</div>
-                <div className="text-xs text-muted-foreground capitalize">{fechaCompleta}</div>
-              </CardContent>
-            </Card>
+            {isWidgetEnabled('reloj') && (
+              <Card className="bg-muted/30 border-border/50">
+                <CardContent className="py-2 px-4 text-right">
+                  <div className="text-2xl font-mono font-bold tracking-wider text-primary">{hora}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{fechaCompleta}</div>
+                </CardContent>
+              </Card>
+            )}
             <Button onClick={() => navigate('/dashboard/registro-uso')} className="gap-2"><TrendingUp className="w-4 h-4" />Registrar Lectura</Button>
           </div>
         </div>
 
+        {isWidgetEnabled('widgets_fecha') && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="py-3 px-4 flex items-center gap-3">
@@ -315,6 +326,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           {statCards.map((stat, index) => (
@@ -350,7 +362,7 @@ export default function Dashboard() {
 
         {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         {/* Parts Alerts - always visible */}
-        {piezasConAlerta.length > 0 && (
+        {isWidgetEnabled('piezas_atencion') && piezasConAlerta.length > 0 && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-warning"><Package className="w-5 h-5" />Piezas que Requieren Atención</CardTitle>
@@ -382,7 +394,7 @@ export default function Dashboard() {
         )}
 
         {/* Alerta: modelos sin precio configurado */}
-        {modelosSinPrecio.length > 0 && (
+        {isWidgetEnabled('alerta_modelos') && modelosSinPrecio.length > 0 && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => navigate('/dashboard/costos')}>
             <CardContent className="pt-5 pb-5">
               <div className="flex items-center justify-between gap-4">
@@ -459,7 +471,7 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {(openRepairs.length > 0 || stats.enReparacion > 0) && (
+        {isWidgetEnabled('impresoras_reparacion') && (openRepairs.length > 0 || stats.enReparacion > 0) && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-warning">
@@ -499,10 +511,11 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {!loading && printers.length > 0 && (
+        {isWidgetEnabled('grafico_mensual') && !loading && printers.length > 0 && (
           <DashboardCharts printers={printers} filiales={filiales} readings={chartReadings} />
         )}
 
+        {isWidgetEnabled('lecturas_recientes') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Printers */}
           <Card className="animate-fade-in">
@@ -589,6 +602,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {role === 'user' && (
           <Card className="animate-fade-in">
