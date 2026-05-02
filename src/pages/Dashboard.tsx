@@ -16,6 +16,7 @@ import { TIPO_PIEZA_LABELS } from '@/hooks/usePartsAlerts';
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { usePartsAlertsContext } from '@/contexts/PartsAlertsContext';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
+import { isWidgetEnabled } from '@/lib/dashboardWidgets';
 
 interface Stats {
   total: number; activas: number; enReparacion: number; inactivas: number;
@@ -91,6 +92,13 @@ export default function Dashboard() {
   useEffect(() => {
     const timer = setInterval(() => setAhora(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const handleStorage = () => forceUpdate(n => n + 1);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
   }, []);
 
   const hora = ahora.toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -245,12 +253,12 @@ export default function Dashboard() {
   const readingsTrend = trendOf(stats.lecturasMes, stats.lecturasMesAnterior);
 
   const statCards = [
-     { title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
-     { title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
-     { title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
-     { title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
-     { title: 'Sin lectura este mes', value: stats.sinLecturaMes, subtitle: `de ${stats.activas} impresoras activas`, icon: FileWarning, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/registro-uso?tab=sin-actividad'), trend: null, trendLabel: '' },
-  ];
+     { widgetId: 'kpi_paginas', title: 'Total Páginas Impresas', value: (stats.totalPaginasNegro + stats.totalPaginasColor).toLocaleString(), subtitle: `${stats.totalPaginasNegro.toLocaleString()} B/N · ${stats.totalPaginasColor.toLocaleString()} Color`, icon: FileText, color: 'text-primary', bgColor: 'bg-primary/10', trend: pagesTrend, trendLabel: 'vs mes anterior' },
+     { widgetId: 'kpi_impresoras', title: 'Impresoras Activas', value: stats.activas, subtitle: `${stats.total} registradas en total`, icon: CheckCircle, color: 'text-success', bgColor: 'bg-success/10', trend: null, trendLabel: '' },
+     { widgetId: 'kpi_piezas', title: 'Piezas con Alerta', value: piezasConAlerta.length, subtitle: 'Próximas a vencer', icon: Package, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/piezas'), trend: null, trendLabel: '' },
+     { widgetId: 'kpi_lecturas', title: 'Lecturas Hoy', value: stats.lecturasHoy, subtitle: `${stats.lecturasMes} en el mes`, icon: Clock, color: 'text-info', bgColor: 'bg-info/10', trend: readingsTrend, trendLabel: 'lecturas vs mes anterior' },
+     { widgetId: 'kpi_sin_lectura', title: 'Sin lectura este mes', value: stats.sinLecturaMes, subtitle: `de ${stats.activas} impresoras activas`, icon: FileWarning, color: 'text-warning', bgColor: 'bg-warning/10', onClick: () => navigate('/dashboard/registro-uso?tab=sin-actividad'), trend: null, trendLabel: '' },
+  ].filter(card => isWidgetEnabled(card.widgetId));
 
   return (
     <DashboardLayout>
