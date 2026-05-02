@@ -271,16 +271,19 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Card className="bg-muted/30 border-border/50">
-              <CardContent className="py-2 px-4 text-right">
-                <div className="text-2xl font-mono font-bold tracking-wider text-primary">{hora}</div>
-                <div className="text-xs text-muted-foreground capitalize">{fechaCompleta}</div>
-              </CardContent>
-            </Card>
+            {isWidgetEnabled('reloj') && (
+              <Card className="bg-muted/30 border-border/50">
+                <CardContent className="py-2 px-4 text-right">
+                  <div className="text-2xl font-mono font-bold tracking-wider text-primary">{hora}</div>
+                  <div className="text-xs text-muted-foreground capitalize">{fechaCompleta}</div>
+                </CardContent>
+              </Card>
+            )}
             <Button onClick={() => navigate('/dashboard/registro-uso')} className="gap-2"><TrendingUp className="w-4 h-4" />Registrar Lectura</Button>
           </div>
         </div>
 
+        {isWidgetEnabled('widgets_fecha') && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="py-3 px-4 flex items-center gap-3">
@@ -323,6 +326,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
           {statCards.map((stat, index) => (
