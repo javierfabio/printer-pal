@@ -602,6 +602,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {role === 'user' && (
           <Card className="animate-fade-in">
