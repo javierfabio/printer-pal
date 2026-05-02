@@ -225,7 +225,23 @@ export default function ScanQR() {
           </div>
         </button>
         {currentUser && (
-          <p className="text-center text-xs text-muted-foreground">Sesión activa: {currentUser.email}</p>
+          <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold flex-shrink-0">
+              {currentUser.email?.[0]?.toUpperCase()}
+            </div>
+            <span>
+              Sesión activa: <strong>{currentUser.user_metadata?.full_name || currentUser.email}</strong>
+            </span>
+            <button
+              className="text-muted-foreground hover:text-destructive transition-colors ml-1"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                setCurrentUser(null);
+              }}
+            >
+              (Salir)
+            </button>
+          </div>
         )}
       </div>
       <div className="pb-8 text-center">
