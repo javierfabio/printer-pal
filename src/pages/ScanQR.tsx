@@ -533,6 +533,19 @@ export default function ScanQR() {
           >
             Volver al inicio
           </Button>
+          {currentUser && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-muted-foreground"
+              onClick={() => {
+                sessionStorage.setItem('preselectPrinter', printer!.id);
+                window.location.href = '/dashboard/registro-uso';
+              }}
+            >
+              Ver historial completo en el sistema
+            </Button>
+          )}
         </div>
       </div>
     </div>
