@@ -197,6 +197,19 @@ export default function RegistroUso() {
     setSelectedPrinter(printerId);
   }, [impresoras, searchParams]);
 
+  useEffect(() => {
+    if (impresoras.length === 0) return;
+    const preselect = sessionStorage.getItem('preselectPrinter');
+    if (preselect) {
+      sessionStorage.removeItem('preselectPrinter');
+      const found = impresoras.find(p => p.id === preselect);
+      if (found) {
+        setSelectedPrinter(preselect);
+        setDialogOpen(true);
+      }
+    }
+  }, [impresoras]);
+
   const fetchData = async () => {
     setLoading(true);
     setFetchError(null);
