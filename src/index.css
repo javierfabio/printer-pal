@@ -327,3 +327,11 @@ select:focus {
     color: black !important;
   }
 }
+
+/* Sticky actions column hover highlight */
+tr:hover td.sticky {
+  background-color: hsl(var(--muted) / 0.5) !important;
+}
+tr.bg-warning\/5:hover td.sticky {
+  background-color: hsl(var(--warning) / 0.08) !important;
+}

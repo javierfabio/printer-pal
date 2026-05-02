@@ -9,7 +9,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench, X, QrCode } from 'lucide-react';
+import { Plus, Search, Edit, History, Loader2, Printer, Download, FileText, FileWarning, Wrench, X, QrCode, Columns } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { generateQRPDF, generateQRBulkPDF } from '@/lib/qrUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -26,6 +34,36 @@ import { useSearchParams } from 'react-router-dom';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 type TipoConsumo = 'tinta' | 'toner';
+
+// IDs y labels de todas las columnas configurables
+const COLUMN_DEFS = [
+  { id: 'serie',      label: 'Serie',      defaultVisible: true  },
+  { id: 'nombre',     label: 'Nombre',     defaultVisible: true  },
+  { id: 'modelo',     label: 'Modelo',     defaultVisible: true  },
+  { id: 'tipo',       label: 'Tipo',       defaultVisible: true  },
+  { id: 'consumo',    label: 'Consumo',    defaultVisible: false },
+  { id: 'filial',     label: 'Filial',     defaultVisible: true  },
+  { id: 'sector',     label: 'Sector',     defaultVisible: true  },
+  { id: 'estado',     label: 'Estado',     defaultVisible: true  },
+  { id: 'ip',         label: 'IP',         defaultVisible: false },
+  { id: 'contadores', label: 'Contadores', defaultVisible: true  },
+] as const;
+
+type ColumnId = typeof COLUMN_DEFS[number]['id'];
+
+const COLUMNS_STORAGE_KEY = 'printcontrol_impresoras_columns';
+
+function getStoredColumns(): Record<ColumnId, boolean> {
+  const defaults = Object.fromEntries(
+    COLUMN_DEFS.map(c => [c.id, c.defaultVisible])
+  ) as Record<ColumnId, boolean>;
+  try {
+    const saved = localStorage.getItem(COLUMNS_STORAGE_KEY);
+    if (saved) return { ...defaults, ...JSON.parse(saved) };
+  } catch {}
+  return defaults;
+}
+
 type TipoImpresion = 'monocromatico' | 'color';
 type EstadoImpresora = 'activa' | 'inactiva' | 'en_reparacion' | 'baja';
 
@@ -89,6 +127,18 @@ export default function Impresoras() {
   const [repairOutOpen, setRepairOutOpen] = useState(false);
   const [repairReturnOpen, setRepairReturnOpen] = useState(false);
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
+
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>(getStoredColumns);
+
+  const toggleColumn = (id: ColumnId) => {
+    setVisibleColumns(prev => {
+      const updated = { ...prev, [id]: !prev[id] };
+      localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const showCol = (id: ColumnId) => visibleColumns[id];
 
   const [formData, setFormData] = useState({
     serie: '',
@@ -378,6 +428,42 @@ export default function Impresoras() {
           <div className="flex gap-2">
             <Button onClick={exportImpresorasCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV</Button>
             <Button onClick={exportImpresorasPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Columns className="w-4 h-4" />
+                  Columnas
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  Mostrar columnas
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {COLUMN_DEFS.map(col => (
+                  <DropdownMenuCheckboxItem
+                    key={col.id}
+                    checked={visibleColumns[col.id]}
+                    onCheckedChange={() => toggleColumn(col.id)}
+                  >
+                    {col.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem
+                  checked={Object.values(visibleColumns).every(Boolean)}
+                  onCheckedChange={() => {
+                    const allVisible = Object.fromEntries(
+                      COLUMN_DEFS.map(c => [c.id, true])
+                    ) as Record<ColumnId, boolean>;
+                    setVisibleColumns(allVisible);
+                    localStorage.setItem(COLUMNS_STORAGE_KEY, JSON.stringify(allVisible));
+                  }}
+                >
+                  Mostrar todas
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               variant="outline"
               className="gap-2"
@@ -606,21 +692,23 @@ export default function Impresoras() {
             ) : filteredImpresoras.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground"><Printer className="w-12 h-12 mx-auto mb-2 opacity-50" /><p>No se encontraron impresoras</p></div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-x-auto relative">
+                <Table className="w-full">
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Serie</TableHead>
-                      <TableHead>Nombre</TableHead>
-                      <TableHead>Modelo</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead>Consumo</TableHead>
-                      <TableHead>Filial</TableHead>
-                      <TableHead>Sector</TableHead>
-                      <TableHead>Estado</TableHead>
-                      <TableHead>IP</TableHead>
-                      <TableHead>Contadores</TableHead>
-                      <TableHead className="text-right">Acciones</TableHead>
+                      {showCol('serie')      && <TableHead className="whitespace-nowrap">Serie</TableHead>}
+                      {showCol('nombre')     && <TableHead className="whitespace-nowrap">Nombre</TableHead>}
+                      {showCol('modelo')     && <TableHead className="whitespace-nowrap">Modelo</TableHead>}
+                      {showCol('tipo')       && <TableHead className="whitespace-nowrap">Tipo</TableHead>}
+                      {showCol('consumo')    && <TableHead className="whitespace-nowrap">Consumo</TableHead>}
+                      {showCol('filial')     && <TableHead className="whitespace-nowrap">Filial</TableHead>}
+                      {showCol('sector')     && <TableHead className="whitespace-nowrap">Sector</TableHead>}
+                      {showCol('estado')     && <TableHead className="whitespace-nowrap">Estado</TableHead>}
+                      {showCol('ip')         && <TableHead className="whitespace-nowrap">IP</TableHead>}
+                      {showCol('contadores') && <TableHead className="whitespace-nowrap">Contadores</TableHead>}
+                      <TableHead className="text-right whitespace-nowrap sticky right-0 bg-background z-20 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.15)]">
+                        Acciones
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -634,43 +722,67 @@ export default function Impresoras() {
                         )}
                         onClick={() => openHistorial(imp)}
                       >
-                        <TableCell className="font-mono text-sm">{imp.serie}</TableCell>
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            {imp.estado === 'en_reparacion' && (
-                              <span className="inline-flex items-center gap-1 text-[10px] text-warning font-medium">
-                                <Wrench className="w-3 h-3" />En reparación
-                              </span>
-                            )}
-                            <span>{imp.nombre}</span>
-                            {printersSinLectura.has(imp.id) && (
-                              <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
-                                <FileWarning className="w-3 h-3" />Sin registro
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{imp.modelo}</TableCell>
-                        <TableCell className="capitalize">{imp.tipo_impresion}</TableCell>
-                        <TableCell className="capitalize">{imp.tipo_consumo}</TableCell>
-                        <TableCell className="text-muted-foreground">{(imp as any).filiales?.nombre || '-'}</TableCell>
-                        <TableCell className="text-muted-foreground">{(imp as any).sectores?.nombre || '-'}</TableCell>
-                        <TableCell>{getStatusBadge(imp.estado)}</TableCell>
-                        <TableCell className="text-muted-foreground text-xs">{imp.lectura_ip ? imp.ip_address || 'Sí' : '-'}</TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {imp.tipo_impresion === 'color' ? (
-                              <><span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}{imp.tipo_consumo === 'toner' && (<> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>)}</>
-                            ) : (
-                              <><span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {showCol('serie') && (
+                          <TableCell className="font-mono text-sm whitespace-nowrap">{imp.serie}</TableCell>
+                        )}
+                        {showCol('nombre') && (
+                          <TableCell className="font-medium whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              {imp.estado === 'en_reparacion' && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-warning font-medium">
+                                  <Wrench className="w-3 h-3" />En reparación
+                                </span>
+                              )}
+                              <span>{imp.nombre}</span>
+                              {printersSinLectura.has(imp.id) && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-warning/15 text-warning border border-warning/30 flex items-center gap-1">
+                                  <FileWarning className="w-3 h-3" />Sin registro
+                                </span>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        {showCol('modelo') && (
+                          <TableCell className="whitespace-nowrap">{imp.modelo}</TableCell>
+                        )}
+                        {showCol('tipo') && (
+                          <TableCell className="capitalize whitespace-nowrap">{imp.tipo_impresion}</TableCell>
+                        )}
+                        {showCol('consumo') && (
+                          <TableCell className="capitalize whitespace-nowrap">{imp.tipo_consumo}</TableCell>
+                        )}
+                        {showCol('filial') && (
+                          <TableCell className="text-muted-foreground whitespace-nowrap">{(imp as any).filiales?.nombre || '-'}</TableCell>
+                        )}
+                        {showCol('sector') && (
+                          <TableCell className="text-muted-foreground whitespace-nowrap">{(imp as any).sectores?.nombre || '-'}</TableCell>
+                        )}
+                        {showCol('estado') && (
+                          <TableCell className="whitespace-nowrap">{getStatusBadge(imp.estado)}</TableCell>
+                        )}
+                        {showCol('ip') && (
+                          <TableCell className="text-muted-foreground text-xs whitespace-nowrap">{imp.lectura_ip ? imp.ip_address || 'Sí' : '-'}</TableCell>
+                        )}
+                        {showCol('contadores') && (
+                          <TableCell className="whitespace-nowrap">
+                            <div className="text-sm">
+                              {imp.tipo_impresion === 'color' ? (
+                                <><span className="text-muted-foreground">Color:</span> {imp.contador_color_actual}{imp.tipo_consumo === 'toner' && (<> / <span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>)}</>
+                              ) : (
+                                <><span className="text-muted-foreground">B/N:</span> {imp.contador_negro_actual}</>
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
+                        <TableCell
+                          className="text-right whitespace-nowrap sticky right-0 z-10 bg-background shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.15)]"
+                          onClick={(e) => e.stopPropagation()}
+                        >
                           <div className="flex justify-end gap-1">
-                            {isAdmin && <Button variant="ghost" size="icon" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
-                            <Button variant="ghost" size="icon" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
-                            <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async () => {
+                            {isAdmin && <Button variant="ghost" size="icon" title="Editar impresora" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
+                            <Button variant="ghost" size="icon" title="Ver historial" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
+                            <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async (e) => {
+                              e.stopPropagation();
                               await generateQRPDF({
                                 id: imp.id,
                                 serie: imp.serie,
