@@ -362,7 +362,7 @@ export default function Dashboard() {
 
         {fetchError && !loading ? <FetchErrorState error={fetchError} onRetry={fetchData} /> : <>
         {/* Parts Alerts - always visible */}
-        {piezasConAlerta.length > 0 && (
+        {isWidgetEnabled('piezas_atencion') && piezasConAlerta.length > 0 && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-warning"><Package className="w-5 h-5" />Piezas que Requieren Atención</CardTitle>
@@ -394,7 +394,7 @@ export default function Dashboard() {
         )}
 
         {/* Alerta: modelos sin precio configurado */}
-        {modelosSinPrecio.length > 0 && (
+        {isWidgetEnabled('alerta_modelos') && modelosSinPrecio.length > 0 && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in cursor-pointer hover:bg-warning/10 transition-colors" onClick={() => navigate('/dashboard/costos')}>
             <CardContent className="pt-5 pb-5">
               <div className="flex items-center justify-between gap-4">
@@ -471,7 +471,7 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {(openRepairs.length > 0 || stats.enReparacion > 0) && (
+        {isWidgetEnabled('impresoras_reparacion') && (openRepairs.length > 0 || stats.enReparacion > 0) && (
           <Card className="border-warning/50 bg-warning/5 animate-fade-in">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-warning">
@@ -511,10 +511,11 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {!loading && printers.length > 0 && (
+        {isWidgetEnabled('grafico_mensual') && !loading && printers.length > 0 && (
           <DashboardCharts printers={printers} filiales={filiales} readings={chartReadings} />
         )}
 
+        {isWidgetEnabled('lecturas_recientes') && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Top Printers */}
           <Card className="animate-fade-in">
