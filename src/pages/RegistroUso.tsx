@@ -830,21 +830,89 @@ export default function RegistroUso() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label className="text-sm">Filial</Label>
-                <Select value={filterFilial} onValueChange={v => { setFilterFilial(v); setFilterSector('all'); setFilterModelo('all'); }}>
-                  <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="all">Todas las filiales</SelectItem>
-                    {filiales.map(f => <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>)}
+                <Select
+                  value={filterFilial}
+                  onValueChange={v => { setFilterFilial(v); setFilterSector('all'); setFilterModelo('all'); }}
+                  onOpenChange={() => setFilterFilialSearch('')}
+                >
+                  <SelectTrigger><SelectValue placeholder="Todas las filiales" /></SelectTrigger>
+                  <SelectContent className="bg-popover p-0">
+                    <div className="px-2 pt-2 pb-1 sticky top-0 bg-popover border-b border-border z-10">
+                      <div className="flex items-center gap-2 px-2 py-1 rounded-md border border-input bg-background">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <input
+                          placeholder="Buscar filial..."
+                          value={filterFilialSearch}
+                          onChange={e => setFilterFilialSearch(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          onKeyDown={e => e.stopPropagation()}
+                          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                          autoComplete="off"
+                        />
+                        {filterFilialSearch && (
+                          <button type="button" onClick={() => setFilterFilialSearch('')}
+                            className="text-muted-foreground hover:text-foreground">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto py-1">
+                      <SelectItem value="all">Todas las filiales</SelectItem>
+                      {filialesFiltradas.length === 0 ? (
+                        <div className="px-3 py-3 text-sm text-muted-foreground text-center">
+                          Sin resultados para "{filterFilialSearch}"
+                        </div>
+                      ) : (
+                        filialesFiltradas.map(f => (
+                          <SelectItem key={f.id} value={f.id}>{f.nombre}</SelectItem>
+                        ))
+                      )}
+                    </div>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm">Sector</Label>
-                <Select value={filterSector} onValueChange={v => { setFilterSector(v); setFilterModelo('all'); }}>
-                  <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
-                  <SelectContent className="bg-popover">
-                    <SelectItem value="all">Todos los sectores</SelectItem>
-                    {filteredSectores.map(s => <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>)}
+                <Select
+                  value={filterSector}
+                  onValueChange={v => { setFilterSector(v); setFilterModelo('all'); }}
+                  onOpenChange={() => setFilterSectorSearch('')}
+                >
+                  <SelectTrigger><SelectValue placeholder="Todos los sectores" /></SelectTrigger>
+                  <SelectContent className="bg-popover p-0">
+                    <div className="px-2 pt-2 pb-1 sticky top-0 bg-popover border-b border-border z-10">
+                      <div className="flex items-center gap-2 px-2 py-1 rounded-md border border-input bg-background">
+                        <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                        <input
+                          placeholder="Buscar sector..."
+                          value={filterSectorSearch}
+                          onChange={e => setFilterSectorSearch(e.target.value)}
+                          onClick={e => e.stopPropagation()}
+                          onKeyDown={e => e.stopPropagation()}
+                          className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                          autoComplete="off"
+                        />
+                        {filterSectorSearch && (
+                          <button type="button" onClick={() => setFilterSectorSearch('')}
+                            className="text-muted-foreground hover:text-foreground">
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="max-h-52 overflow-y-auto py-1">
+                      <SelectItem value="all">Todos los sectores</SelectItem>
+                      {sectoresFiltradosConBusqueda.length === 0 ? (
+                        <div className="px-3 py-3 text-sm text-muted-foreground text-center">
+                          Sin resultados para "{filterSectorSearch}"
+                        </div>
+                      ) : (
+                        sectoresFiltradosConBusqueda.map(s => (
+                          <SelectItem key={s.id} value={s.id}>{s.nombre}</SelectItem>
+                        ))
+                      )}
+                    </div>
                   </SelectContent>
                 </Select>
               </div>
