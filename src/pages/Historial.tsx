@@ -437,7 +437,10 @@ export default function Historial() {
         <Card>
           <CardHeader>
             <CardTitle>{activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : activeTab === 'piezas' ? 'Historial de Reemplazo de Piezas' : 'Historial de Reparaciones'}</CardTitle>
-            <CardDescription>{activeTab === 'lecturas' ? `${filteredLecturas.length} lecturas` : activeTab === 'cambios' ? `${filteredHistorial.length} cambios` : activeTab === 'piezas' ? `${filteredPiezas.length} reemplazos` : `${filteredReparaciones.length} reparaciones`}</CardDescription>
+            <CardDescription>
+              {totalCount} {activeTab === 'lecturas' ? 'lecturas' : activeTab === 'cambios' ? 'cambios' : activeTab === 'piezas' ? 'reemplazos' : 'reparaciones'}
+              {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -467,7 +470,7 @@ export default function Historial() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredLecturas.map((l, index) => {
+                      {pagedLecturas.map((l, index) => {
                         const pi = getPrinterInfo(l.impresora_id);
                         const ant = lecturasConAnterior[l.id];
                         const consumoN = ant?.negroAnt != null && l.contador_negro != null ? l.contador_negro - ant.negroAnt : 0;
@@ -517,6 +520,7 @@ export default function Historial() {
                       })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             ) : activeTab === 'cambios' ? (
@@ -525,7 +529,7 @@ export default function Historial() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Fecha/Hora</TableHead><TableHead>Filial</TableHead><TableHead>Impresora</TableHead><TableHead>Campo</TableHead><TableHead>Cambio</TableHead><TableHead>Realizado Por</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredHistorial.map(item => { const pi = getPrinterInfo(item.impresora_id); return (
+                      {pagedHistorial.map(item => { const pi = getPrinterInfo(item.impresora_id); return (
                         <TableRow key={item.id} className="hover:bg-muted/50">
                           <TableCell className="whitespace-nowrap"><div><div className="font-medium">{new Date(item.created_at).toLocaleDateString('es')}</div><div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div></div></TableCell>
                           <TableCell className="text-muted-foreground">{getFilialName(pi?.filial_id || null)}</TableCell>
@@ -538,6 +542,7 @@ export default function Historial() {
                       ); })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             ) : activeTab === 'piezas' ? (
@@ -546,7 +551,7 @@ export default function Historial() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Filial</TableHead><TableHead>Sector</TableHead><TableHead>Impresora</TableHead><TableHead>Pieza</TableHead><TableHead className="text-right">Contador</TableHead><TableHead>Técnico</TableHead><TableHead>Observación</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredPiezas.map(pieza => { const pi = getPrinterInfo(pieza.impresora_id); return (
+                      {pagedPiezas.map(pieza => { const pi = getPrinterInfo(pieza.impresora_id); return (
                         <TableRow key={pieza.id} className="hover:bg-muted/50">
                           <TableCell className="whitespace-nowrap"><div><div className="font-medium">{new Date(pieza.fecha_cambio).toLocaleDateString('es')}</div><div className="text-xs text-muted-foreground">{new Date(pieza.fecha_cambio).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div></div></TableCell>
                           <TableCell className="text-muted-foreground">{getFilialName(pi?.filial_id || null)}</TableCell>
@@ -560,6 +565,7 @@ export default function Historial() {
                       ); })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             ) : (
@@ -568,7 +574,7 @@ export default function Historial() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Salida</TableHead><TableHead>Retorno</TableHead><TableHead className="text-right">Días</TableHead><TableHead>Impresora</TableHead><TableHead>Motivo</TableHead><TableHead>Técnico</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Costo</TableHead><TableHead>Resultado</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredReparaciones.map(r => {
+                      {pagedReparaciones.map(r => {
                         const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000);
                         const colorClass = dias > 15 ? 'bg-destructive/15 text-destructive border-destructive/40' : dias > 7 ? 'bg-orange-500/15 text-orange-500 border-orange-500/40' : 'bg-warning/15 text-warning border-warning/40';
                         return (
@@ -587,6 +593,7 @@ export default function Historial() {
                       })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             )}
