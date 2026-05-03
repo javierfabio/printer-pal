@@ -29,6 +29,7 @@ import {
   QrCode,
   X,
   Search,
+  ChevronDown,
 } from 'lucide-react';
 import { BrowserMultiFormatReader } from '@zxing/browser';
 import { useRef } from 'react';
