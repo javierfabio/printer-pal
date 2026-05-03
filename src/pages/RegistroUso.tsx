@@ -135,6 +135,7 @@ export default function RegistroUso() {
   const [scannerError, setScannerError] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const readerRef = useRef<BrowserMultiFormatReader | null>(null);
+  const contadorInputRef = useRef<HTMLInputElement>(null);
 
   const [filterSectorSearch, setFilterSectorSearch] = useState('');
   const [filterFilialSearch, setFilterFilialSearch] = useState('');
