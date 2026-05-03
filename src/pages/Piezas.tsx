@@ -349,7 +349,7 @@ export default function Piezas() {
       ? impresora.contador_negro_actual + impresora.contador_color_actual 
       : 0;
     
-    const vidaUtilReal = contadorActual - selectedPieza.contador_instalacion;
+    const vidaUtilReal = contadorActual - selectedPieza.contador_instalacion + (selectedPieza.paginas_consumidas || 0);
     const porcentajeVida = (vidaUtilReal / selectedPieza.vida_util_estimada) * 100;
 
     // 1. Insert into history
