@@ -50,6 +50,11 @@ export default function Historial() {
   const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas' | 'reparaciones'>('lecturas');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [activeTab, searchTerm, filterPrinter, filterFilial, filterSector, filterModelo, filterDateFrom, filterDateTo]);
+
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
