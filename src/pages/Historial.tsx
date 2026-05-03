@@ -230,6 +230,51 @@ export default function Historial() {
   const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setSortOrder('desc'); };
   const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || searchTerm;
 
+  const activeData: any[] = activeTab === 'lecturas' ? filteredLecturas
+    : activeTab === 'cambios' ? filteredHistorial
+    : activeTab === 'piezas' ? filteredPiezas
+    : filteredReparaciones;
+  const totalCount = activeData.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pagedLecturas = activeTab === 'lecturas' ? filteredLecturas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredLecturas;
+  const pagedHistorial = activeTab === 'cambios' ? filteredHistorial.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredHistorial;
+  const pagedPiezas = activeTab === 'piezas' ? filteredPiezas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredPiezas;
+  const pagedReparaciones = activeTab === 'reparaciones' ? filteredReparaciones.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredReparaciones;
+
+  const Pagination = () => totalCount > PAGE_SIZE ? (
+    <div className="flex items-center justify-between px-2 py-4 border-t border-border/50">
+      <p className="text-sm text-muted-foreground">
+        Mostrando{' '}
+        <span className="font-medium text-foreground">
+          {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)}
+        </span>
+        {' '}de{' '}
+        <span className="font-medium text-foreground">{totalCount}</span>
+        {' '}registros
+      </p>
+      <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8 p-0">«</Button>
+        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 px-3">← Anterior</Button>
+        <div className="flex gap-1">
+          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+            let pageNum: number;
+            if (totalPages <= 5) pageNum = i;
+            else if (page < 3) pageNum = i;
+            else if (page > totalPages - 3) pageNum = totalPages - 5 + i;
+            else pageNum = page - 2 + i;
+            return (
+              <Button key={pageNum} variant={page === pageNum ? 'default' : 'outline'} size="sm" onClick={() => setPage(pageNum)} className="h-8 w-8 p-0">
+                {pageNum + 1}
+              </Button>
+            );
+          })}
+        </div>
+        <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 px-3">Siguiente →</Button>
+        <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8 p-0">»</Button>
+      </div>
+    </div>
+  ) : null;
+
   const exportToCSV = () => {
     let data: Record<string, any>[] = [];
     if (activeTab === 'lecturas') {
