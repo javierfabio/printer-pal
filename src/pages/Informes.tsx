@@ -183,6 +183,20 @@ export default function Informes() {
       theme: 'striped', headStyles: { fillColor: [59, 130, 246], textColor: 255 }, styles: { fontSize: 8 },
     });
 
+    // Impresoras activas sin lecturas registradas
+    const idsConLectura = new Set(lecturas.map(l => l.impresora_id));
+    const sinLecturas = filteredImpresoras.filter(i => i.estado === 'activa' && !idsConLectura.has(i.id));
+    if (sinLecturas.length > 0) {
+      doc.addPage();
+      const slY = addPDFHeader(doc, `Impresoras activas sin lecturas registradas (${sinLecturas.length})`);
+      autoTable(doc, {
+        startY: slY,
+        head: [['Filial', 'Sector', 'Modelo', 'Serie', 'Nombre']],
+        body: sinLecturas.map(i => [getFilialName(i.filial_id), getSectorName(i.sector_id), i.modelo, i.serie, i.nombre]),
+        theme: 'striped', headStyles: { fillColor: [234, 179, 8], textColor: 255 }, styles: { fontSize: 8 },
+      });
+    }
+
     addPDFPageNumbers(doc);
     doc.save(`informe_consumo_${new Date().toISOString().split('T')[0]}.pdf`);
     toast({ title: 'PDF Generado' });
