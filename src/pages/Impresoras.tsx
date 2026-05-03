@@ -385,7 +385,7 @@ export default function Impresoras() {
 
   const filteredImpresoras = useMemo(() => {
     const filialFromQuery = searchParams.get('filial');
-    return impresoras.filter(imp => {
+    const filtered = impresoras.filter(imp => {
       const q = search.toLowerCase();
       const sectorNombre = (imp as any).sectores?.nombre?.toLowerCase() || '';
       const filialNombre = (imp as any).filiales?.nombre?.toLowerCase() || '';
@@ -403,7 +403,27 @@ export default function Impresoras() {
       const matchesFilial = !filialFromQuery || imp.filial_id === filialFromQuery;
       return matchesSearch && matchesSinLectura && matchesFilial;
     });
-  }, [filterSinLectura, impresoras, printersSinLectura, search, searchParams]);
+    return [...filtered].sort((a, b) => {
+      let valA: string | number = '';
+      let valB: string | number = '';
+      switch (sortField) {
+        case 'serie':      valA = a.serie; valB = b.serie; break;
+        case 'nombre':     valA = a.nombre; valB = b.nombre; break;
+        case 'modelo':     valA = a.modelo; valB = b.modelo; break;
+        case 'filial':     valA = (a as any).filiales?.nombre || ''; valB = (b as any).filiales?.nombre || ''; break;
+        case 'sector':     valA = (a as any).sectores?.nombre || ''; valB = (b as any).sectores?.nombre || ''; break;
+        case 'estado':     valA = a.estado; valB = b.estado; break;
+        case 'contadores': valA = (a.contador_negro_actual || 0) + (a.contador_color_actual || 0);
+                           valB = (b.contador_negro_actual || 0) + (b.contador_color_actual || 0); break;
+      }
+      if (typeof valA === 'string') {
+        return sortDir === 'asc'
+          ? valA.localeCompare(valB as string, 'es')
+          : (valB as string).localeCompare(valA, 'es');
+      }
+      return sortDir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
+    });
+  }, [filterSinLectura, impresoras, printersSinLectura, search, searchParams, sortField, sortDir]);
 
   const getStatusBadge = (estado: EstadoImpresora) => {
     const statusMap: Record<EstadoImpresora, { label: string; className: string }> = {
