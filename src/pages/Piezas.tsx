@@ -211,7 +211,7 @@ export default function Piezas() {
         .order('tipo_pieza'),
       supabase
         .from('impresoras')
-        .select('id, nombre, serie, modelo, contador_negro_actual, contador_color_actual, tipo_impresion')
+        .select('id, nombre, serie, modelo, contador_negro_actual, contador_color_actual, tipo_impresion, fecha_registro, created_at')
         .eq('estado', 'activa')
         .order('nombre'),
       supabase
