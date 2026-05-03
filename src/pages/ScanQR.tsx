@@ -198,6 +198,12 @@ export default function ScanQR() {
       </div>
       <div className="flex-1 flex flex-col justify-center px-6 gap-4 py-8">
         <p className="text-center text-sm text-muted-foreground mb-2">¿Qué querés hacer?</p>
+        {printer!.estado === 'en_reparacion' && (
+          <div className="p-3 rounded-xl bg-warning/15 border border-warning/30 text-sm text-warning flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <span>Esta impresora está actualmente en reparación. Verificá con el administrador antes de registrar una lectura.</span>
+          </div>
+        )}
         <button
           onClick={() => setVista('info')}
           className="w-full flex items-center gap-4 p-5 rounded-2xl border-2 border-border bg-card hover:border-primary hover:bg-primary/5 transition-all duration-200 text-left group"
