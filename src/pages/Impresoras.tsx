@@ -52,6 +52,9 @@ const COLUMN_DEFS = [
 type ColumnId = typeof COLUMN_DEFS[number]['id'];
 
 const COLUMNS_STORAGE_KEY = 'printcontrol_impresoras_columns';
+const SORT_STORAGE_KEY = 'printcontrol_impresoras_sort';
+
+type SortField = 'serie' | 'nombre' | 'modelo' | 'filial' | 'sector' | 'estado' | 'contadores';
 
 function getStoredColumns(): Record<ColumnId, boolean> {
   const defaults = Object.fromEntries(
@@ -129,6 +132,34 @@ export default function Impresoras() {
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
 
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>(getStoredColumns);
+
+  const [sortField, setSortField] = useState<SortField>(() => {
+    try { return (JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || '{}').field as SortField) || 'nombre'; } catch { return 'nombre'; }
+  });
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => {
+    try { return (JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || '{}').dir as 'asc' | 'desc') || 'asc'; } catch { return 'asc'; }
+  });
+
+  const handleSort = (field: SortField) => {
+    const newDir: 'asc' | 'desc' = sortField === field && sortDir === 'asc' ? 'desc' : 'asc';
+    setSortField(field);
+    setSortDir(newDir);
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ field, dir: newDir }));
+  };
+
+  const SortableHead = ({ field, label, className = '' }: { field: SortField; label: string; className?: string }) => (
+    <TableHead
+      className={cn('whitespace-nowrap cursor-pointer select-none hover:bg-muted/50 transition-colors group', className)}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        <span className="text-muted-foreground opacity-60 transition-opacity text-[10px]">
+          {sortField === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </div>
+    </TableHead>
+  );
 
   const toggleColumn = (id: ColumnId) => {
     setVisibleColumns(prev => {
