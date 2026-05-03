@@ -211,7 +211,7 @@ export default function Piezas() {
         .order('tipo_pieza'),
       supabase
         .from('impresoras')
-        .select('id, nombre, serie, modelo, contador_negro_actual, contador_color_actual, tipo_impresion')
+        .select('id, nombre, serie, modelo, contador_negro_actual, contador_color_actual, tipo_impresion, fecha_registro, created_at')
         .eq('estado', 'activa')
         .order('nombre'),
       supabase
@@ -251,7 +251,7 @@ export default function Piezas() {
               vida_util_estimada: cat.vida_util_estimada,
               contador_instalacion: (imp.contador_negro_actual || 0) + (imp.contador_color_actual || 0),
               paginas_consumidas: 0,
-              fecha_instalacion: new Date().toISOString(),
+              fecha_instalacion: imp.fecha_registro || imp.created_at || new Date().toISOString(),
               activo: true,
               notas: 'Pieza generada automáticamente desde catálogo',
               impresoras: {
@@ -349,7 +349,7 @@ export default function Piezas() {
       ? impresora.contador_negro_actual + impresora.contador_color_actual 
       : 0;
     
-    const vidaUtilReal = contadorActual - selectedPieza.contador_instalacion;
+    const vidaUtilReal = contadorActual - selectedPieza.contador_instalacion + (selectedPieza.paginas_consumidas || 0);
     const porcentajeVida = (vidaUtilReal / selectedPieza.vida_util_estimada) * 100;
 
     // 1. Insert into history

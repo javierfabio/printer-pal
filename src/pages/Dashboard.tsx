@@ -109,7 +109,9 @@ export default function Dashboard() {
       setLoading(true);
       setFetchError(null);
       try {
-      const [printersResp, readingsResp, secResp, filResp, repairsResp, allReadingsResp, preciosResp] = await Promise.all([
+      const hoyStart = new Date();
+      hoyStart.setHours(0, 0, 0, 0);
+      const [printersResp, readingsResp, secResp, filResp, repairsResp, allReadingsResp, preciosResp, lecturasHoyResp] = await Promise.all([
         supabase.from('impresoras').select('*'),
         supabase.from('lecturas_contadores')
           .select('*, impresoras(nombre, serie, modelo, sector_id)')
@@ -123,6 +125,7 @@ export default function Dashboard() {
           .order('fecha_salida', { ascending: false }),
         supabase.from('lecturas_contadores').select('impresora_id'),
         supabase.from('precios_modelo').select('modelo'),
+        supabase.from('lecturas_contadores').select('id', { count: 'exact', head: true }).gte('fecha_lectura', hoyStart.toISOString()),
       ]);
 
       // Lecturas para gráfico mensual (últimos 6 meses)
@@ -157,8 +160,15 @@ export default function Dashboard() {
         const idsConLecturaMes = new Set((chartReadingsResp.data || [])
           .filter((r: any) => new Date(r.fecha_lectura) >= currentMonthStart)
           .map((r: any) => r.impresora_id));
+        const isNoReading = (x: any) => {
+          if (x.estado !== 'activa') return false;
+          if (idsConLecturaMes.has(x.id)) return false;
+          const diasDesdeRegistro = (Date.now() - new Date(x.fecha_registro || x.created_at || 0).getTime()) / 86400000;
+          if (diasDesdeRegistro < 7) return false;
+          return true;
+        };
         const sinLectura = p
-          .filter(x => x.estado === 'activa' && !idsConLecturaMes.has(x.id))
+          .filter(isNoReading)
           .map(x => ({ id: x.id, nombre: x.nombre, modelo: x.modelo, serie: x.serie, filial_id: x.filial_id, sector_id: x.sector_id }));
         setNoReadingPrinters(sinLectura);
         // Modelos sin precio
@@ -177,21 +187,24 @@ export default function Dashboard() {
           enReparacion: p.filter(x => x.estado === 'en_reparacion').length,
           inactivas: p.filter(x => x.estado === 'inactiva' || x.estado === 'baja').length,
           totalPaginasNegro: totalNegro, totalPaginasColor: totalColor,
-          lecturasHoy: 0,
+          lecturasHoy: lecturasHoyResp.count || 0,
           paginasMesActual: 0, paginasMesAnterior: 0,
           lecturasMes: 0, lecturasMesAnterior: 0,
-          sinLecturaMes: p.filter(x => x.estado === 'activa' && !idsConLecturaMes.has(x.id)).length,
+          sinLecturaMes: sinLectura.length,
         });
-        const sorted = [...p].map(x => ({ ...x, totalPages: (x.contador_negro_actual || 0) + (x.contador_color_actual || 0) }))
+        const sorted = [...p].map(x => ({
+          ...x,
+          totalPages: Math.max(0,
+            ((x.contador_negro_actual || 0) - (x.contador_negro_inicial || 0)) +
+            ((x.contador_color_actual || 0) - (x.contador_color_inicial || 0))
+          )
+        }))
           .sort((a, b) => b.totalPages - a.totalPages).slice(0, 5);
         setTopPrinters(sorted as TopPrinter[]);
       }
 
       if (readingsResp.data) {
         setRecentReadings(readingsResp.data as RecentReading[]);
-        const today = new Date().toDateString();
-        const todayCount = readingsResp.data.filter(r => new Date(r.fecha_lectura).toDateString() === today).length;
-        setStats(prev => ({ ...prev, lecturasHoy: todayCount }));
       }
 
       // Calcular tendencias mes actual vs anterior usando chartReadings

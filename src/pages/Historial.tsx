@@ -594,6 +594,34 @@ export default function Historial() {
                     </TableBody>
                   </Table>
                   <Pagination />
+                  {(() => {
+                    const directos = historial.filter(h =>
+                      h.campo_modificado === 'estado' &&
+                      h.valor_nuevo === 'en_reparacion' &&
+                      !reparaciones.some(r => r.printer_id === h.impresora_id && Math.abs(new Date(r.fecha_salida).getTime() - new Date(h.created_at).getTime()) < 60000)
+                    );
+                    if (directos.length === 0) return null;
+                    return (
+                      <div className="mt-6 border-t pt-4">
+                        <p className="text-sm font-semibold mb-2 text-muted-foreground">Cambios directos de estado a "en reparación" ({directos.length})</p>
+                        <p className="text-xs text-muted-foreground mb-3">Estados cambiados desde el formulario de edición sin pasar por el modal de reparación.</p>
+                        <Table>
+                          <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Impresora</TableHead><TableHead>Estado anterior</TableHead><TableHead>Motivo</TableHead><TableHead>Realizado por</TableHead></TableRow></TableHeader>
+                          <TableBody>
+                            {directos.slice(0, 50).map(h => (
+                              <TableRow key={h.id}>
+                                <TableCell className="whitespace-nowrap text-sm">{new Date(h.created_at).toLocaleString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</TableCell>
+                                <TableCell><div className="flex items-center gap-2"><Printer className="w-4 h-4 text-primary" /><span className="font-medium">{h.impresoras?.nombre || '-'}</span></div></TableCell>
+                                <TableCell><Badge variant="outline">{h.valor_anterior || '-'}</Badge></TableCell>
+                                <TableCell className="max-w-[200px] truncate text-muted-foreground">{h.motivo || '-'}</TableCell>
+                                <TableCell><div className="flex items-center gap-1"><User className="w-3 h-3 text-muted-foreground" /><span className="text-sm">{getProfileName(h.usuario_id)}</span></div></TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    );
+                  })()}
                 </div>
               )
             )}

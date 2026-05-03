@@ -266,7 +266,18 @@ export default function Configuraciones() {
             <div className="flex gap-3 items-end">
               <div className="flex-1 space-y-2">
                 <Label>Minutos de inactividad</Label>
-                <Input type="number" min={1} max={480} value={inactivityMinutes} onChange={e => setInactivityMinutes(parseInt(e.target.value) || 30)} />
+                <Input
+                  type="number"
+                  min={5}
+                  max={480}
+                  value={inactivityMinutes}
+                  onChange={e => {
+                    const v = parseInt(e.target.value);
+                    if (isNaN(v)) { setInactivityMinutes(30); return; }
+                    setInactivityMinutes(Math.min(480, Math.max(5, v)));
+                  }}
+                />
+                <p className="text-xs text-muted-foreground">Mínimo 5 minutos, máximo 480 (8 horas).</p>
                 <p className="text-xs text-muted-foreground">Rango: 5 a 60 minutos</p>
               </div>
               <Button onClick={() => { saveInactivityTimeout(inactivityMinutes); toast({ title: 'Guardado', description: `Sesión se cerrará tras ${inactivityMinutes} min.` }); }}>Guardar</Button>
