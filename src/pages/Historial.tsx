@@ -50,6 +50,11 @@ export default function Historial() {
   const [activeTab, setActiveTab] = useState<'lecturas' | 'cambios' | 'piezas' | 'reparaciones'>('lecturas');
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  const PAGE_SIZE = 50;
+  const [page, setPage] = useState(0);
+
+  useEffect(() => { setPage(0); }, [activeTab, searchTerm, filterPrinter, filterFilial, filterSector, filterModelo, filterDateFrom, filterDateTo]);
+
   useEffect(() => { fetchData(); }, []);
 
   const fetchData = async () => {
@@ -225,6 +230,51 @@ export default function Historial() {
   const clearFilters = () => { setFilterFilial('all'); setFilterSector('all'); setFilterModelo('all'); setFilterPrinter('all'); setFilterDateFrom(''); setFilterDateTo(''); setSearchTerm(''); setSortOrder('desc'); };
   const hasActiveFilters = filterFilial !== 'all' || filterSector !== 'all' || filterModelo !== 'all' || filterPrinter !== 'all' || filterDateFrom || filterDateTo || searchTerm;
 
+  const activeData: any[] = activeTab === 'lecturas' ? filteredLecturas
+    : activeTab === 'cambios' ? filteredHistorial
+    : activeTab === 'piezas' ? filteredPiezas
+    : filteredReparaciones;
+  const totalCount = activeData.length;
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+  const pagedLecturas = activeTab === 'lecturas' ? filteredLecturas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredLecturas;
+  const pagedHistorial = activeTab === 'cambios' ? filteredHistorial.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredHistorial;
+  const pagedPiezas = activeTab === 'piezas' ? filteredPiezas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredPiezas;
+  const pagedReparaciones = activeTab === 'reparaciones' ? filteredReparaciones.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : filteredReparaciones;
+
+  const Pagination = () => totalCount > PAGE_SIZE ? (
+    <div className="flex items-center justify-between px-2 py-4 border-t border-border/50">
+      <p className="text-sm text-muted-foreground">
+        Mostrando{' '}
+        <span className="font-medium text-foreground">
+          {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)}
+        </span>
+        {' '}de{' '}
+        <span className="font-medium text-foreground">{totalCount}</span>
+        {' '}registros
+      </p>
+      <div className="flex items-center gap-1">
+        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(0)} className="h-8 w-8 p-0">«</Button>
+        <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)} className="h-8 px-3">← Anterior</Button>
+        <div className="flex gap-1">
+          {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+            let pageNum: number;
+            if (totalPages <= 5) pageNum = i;
+            else if (page < 3) pageNum = i;
+            else if (page > totalPages - 3) pageNum = totalPages - 5 + i;
+            else pageNum = page - 2 + i;
+            return (
+              <Button key={pageNum} variant={page === pageNum ? 'default' : 'outline'} size="sm" onClick={() => setPage(pageNum)} className="h-8 w-8 p-0">
+                {pageNum + 1}
+              </Button>
+            );
+          })}
+        </div>
+        <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)} className="h-8 px-3">Siguiente →</Button>
+        <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(totalPages - 1)} className="h-8 w-8 p-0">»</Button>
+      </div>
+    </div>
+  ) : null;
+
   const exportToCSV = () => {
     let data: Record<string, any>[] = [];
     if (activeTab === 'lecturas') {
@@ -387,7 +437,10 @@ export default function Historial() {
         <Card>
           <CardHeader>
             <CardTitle>{activeTab === 'lecturas' ? 'Historial de Lecturas' : activeTab === 'cambios' ? 'Historial de Cambios' : activeTab === 'piezas' ? 'Historial de Reemplazo de Piezas' : 'Historial de Reparaciones'}</CardTitle>
-            <CardDescription>{activeTab === 'lecturas' ? `${filteredLecturas.length} lecturas` : activeTab === 'cambios' ? `${filteredHistorial.length} cambios` : activeTab === 'piezas' ? `${filteredPiezas.length} reemplazos` : `${filteredReparaciones.length} reparaciones`}</CardDescription>
+            <CardDescription>
+              {totalCount} {activeTab === 'lecturas' ? 'lecturas' : activeTab === 'cambios' ? 'cambios' : activeTab === 'piezas' ? 'reemplazos' : 'reparaciones'}
+              {totalPages > 1 && ` · Página ${page + 1} de ${totalPages}`}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -417,7 +470,7 @@ export default function Historial() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredLecturas.map((l, index) => {
+                      {pagedLecturas.map((l, index) => {
                         const pi = getPrinterInfo(l.impresora_id);
                         const ant = lecturasConAnterior[l.id];
                         const consumoN = ant?.negroAnt != null && l.contador_negro != null ? l.contador_negro - ant.negroAnt : 0;
@@ -467,6 +520,7 @@ export default function Historial() {
                       })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             ) : activeTab === 'cambios' ? (
@@ -475,7 +529,7 @@ export default function Historial() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Fecha/Hora</TableHead><TableHead>Filial</TableHead><TableHead>Impresora</TableHead><TableHead>Campo</TableHead><TableHead>Cambio</TableHead><TableHead>Realizado Por</TableHead><TableHead>Motivo</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredHistorial.map(item => { const pi = getPrinterInfo(item.impresora_id); return (
+                      {pagedHistorial.map(item => { const pi = getPrinterInfo(item.impresora_id); return (
                         <TableRow key={item.id} className="hover:bg-muted/50">
                           <TableCell className="whitespace-nowrap"><div><div className="font-medium">{new Date(item.created_at).toLocaleDateString('es')}</div><div className="text-xs text-muted-foreground">{new Date(item.created_at).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div></div></TableCell>
                           <TableCell className="text-muted-foreground">{getFilialName(pi?.filial_id || null)}</TableCell>
@@ -488,6 +542,7 @@ export default function Historial() {
                       ); })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             ) : activeTab === 'piezas' ? (
@@ -496,7 +551,7 @@ export default function Historial() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Fecha</TableHead><TableHead>Filial</TableHead><TableHead>Sector</TableHead><TableHead>Impresora</TableHead><TableHead>Pieza</TableHead><TableHead className="text-right">Contador</TableHead><TableHead>Técnico</TableHead><TableHead>Observación</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredPiezas.map(pieza => { const pi = getPrinterInfo(pieza.impresora_id); return (
+                      {pagedPiezas.map(pieza => { const pi = getPrinterInfo(pieza.impresora_id); return (
                         <TableRow key={pieza.id} className="hover:bg-muted/50">
                           <TableCell className="whitespace-nowrap"><div><div className="font-medium">{new Date(pieza.fecha_cambio).toLocaleDateString('es')}</div><div className="text-xs text-muted-foreground">{new Date(pieza.fecha_cambio).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })}</div></div></TableCell>
                           <TableCell className="text-muted-foreground">{getFilialName(pi?.filial_id || null)}</TableCell>
@@ -510,6 +565,7 @@ export default function Historial() {
                       ); })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             ) : (
@@ -518,7 +574,7 @@ export default function Historial() {
                   <Table>
                     <TableHeader><TableRow><TableHead>Salida</TableHead><TableHead>Retorno</TableHead><TableHead className="text-right">Días</TableHead><TableHead>Impresora</TableHead><TableHead>Motivo</TableHead><TableHead>Técnico</TableHead><TableHead>Estado</TableHead><TableHead className="text-right">Costo</TableHead><TableHead>Resultado</TableHead></TableRow></TableHeader>
                     <TableBody>
-                      {filteredReparaciones.map(r => {
+                      {pagedReparaciones.map(r => {
                         const dias = r.fecha_retorno ? Math.floor((new Date(r.fecha_retorno).getTime() - new Date(r.fecha_salida).getTime()) / 86400000) : Math.floor((Date.now() - new Date(r.fecha_salida).getTime()) / 86400000);
                         const colorClass = dias > 15 ? 'bg-destructive/15 text-destructive border-destructive/40' : dias > 7 ? 'bg-orange-500/15 text-orange-500 border-orange-500/40' : 'bg-warning/15 text-warning border-warning/40';
                         return (
@@ -537,6 +593,7 @@ export default function Historial() {
                       })}
                     </TableBody>
                   </Table>
+                  <Pagination />
                 </div>
               )
             )}

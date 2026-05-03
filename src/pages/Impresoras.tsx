@@ -52,6 +52,9 @@ const COLUMN_DEFS = [
 type ColumnId = typeof COLUMN_DEFS[number]['id'];
 
 const COLUMNS_STORAGE_KEY = 'printcontrol_impresoras_columns';
+const SORT_STORAGE_KEY = 'printcontrol_impresoras_sort';
+
+type SortField = 'serie' | 'nombre' | 'modelo' | 'filial' | 'sector' | 'estado' | 'contadores';
 
 function getStoredColumns(): Record<ColumnId, boolean> {
   const defaults = Object.fromEntries(
@@ -129,6 +132,34 @@ export default function Impresoras() {
   const [pendingRepairPrinter, setPendingRepairPrinter] = useState<{ id: string; name: string } | null>(null);
 
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnId, boolean>>(getStoredColumns);
+
+  const [sortField, setSortField] = useState<SortField>(() => {
+    try { return (JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || '{}').field as SortField) || 'nombre'; } catch { return 'nombre'; }
+  });
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(() => {
+    try { return (JSON.parse(localStorage.getItem(SORT_STORAGE_KEY) || '{}').dir as 'asc' | 'desc') || 'asc'; } catch { return 'asc'; }
+  });
+
+  const handleSort = (field: SortField) => {
+    const newDir: 'asc' | 'desc' = sortField === field && sortDir === 'asc' ? 'desc' : 'asc';
+    setSortField(field);
+    setSortDir(newDir);
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify({ field, dir: newDir }));
+  };
+
+  const SortableHead = ({ field, label, className = '' }: { field: SortField; label: string; className?: string }) => (
+    <TableHead
+      className={cn('whitespace-nowrap cursor-pointer select-none hover:bg-muted/50 transition-colors group', className)}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        <span className="text-muted-foreground opacity-60 transition-opacity text-[10px]">
+          {sortField === field ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}
+        </span>
+      </div>
+    </TableHead>
+  );
 
   const toggleColumn = (id: ColumnId) => {
     setVisibleColumns(prev => {
@@ -354,7 +385,7 @@ export default function Impresoras() {
 
   const filteredImpresoras = useMemo(() => {
     const filialFromQuery = searchParams.get('filial');
-    return impresoras.filter(imp => {
+    const filtered = impresoras.filter(imp => {
       const q = search.toLowerCase();
       const sectorNombre = (imp as any).sectores?.nombre?.toLowerCase() || '';
       const filialNombre = (imp as any).filiales?.nombre?.toLowerCase() || '';
@@ -372,7 +403,27 @@ export default function Impresoras() {
       const matchesFilial = !filialFromQuery || imp.filial_id === filialFromQuery;
       return matchesSearch && matchesSinLectura && matchesFilial;
     });
-  }, [filterSinLectura, impresoras, printersSinLectura, search, searchParams]);
+    return [...filtered].sort((a, b) => {
+      let valA: string | number = '';
+      let valB: string | number = '';
+      switch (sortField) {
+        case 'serie':      valA = a.serie; valB = b.serie; break;
+        case 'nombre':     valA = a.nombre; valB = b.nombre; break;
+        case 'modelo':     valA = a.modelo; valB = b.modelo; break;
+        case 'filial':     valA = (a as any).filiales?.nombre || ''; valB = (b as any).filiales?.nombre || ''; break;
+        case 'sector':     valA = (a as any).sectores?.nombre || ''; valB = (b as any).sectores?.nombre || ''; break;
+        case 'estado':     valA = a.estado; valB = b.estado; break;
+        case 'contadores': valA = (a.contador_negro_actual || 0) + (a.contador_color_actual || 0);
+                           valB = (b.contador_negro_actual || 0) + (b.contador_color_actual || 0); break;
+      }
+      if (typeof valA === 'string') {
+        return sortDir === 'asc'
+          ? valA.localeCompare(valB as string, 'es')
+          : (valB as string).localeCompare(valA, 'es');
+      }
+      return sortDir === 'asc' ? (valA as number) - (valB as number) : (valB as number) - (valA as number);
+    });
+  }, [filterSinLectura, impresoras, printersSinLectura, search, searchParams, sortField, sortDir]);
 
   const getStatusBadge = (estado: EstadoImpresora) => {
     const statusMap: Record<EstadoImpresora, { label: string; className: string }> = {
@@ -696,16 +747,16 @@ export default function Impresoras() {
                 <Table className="w-full">
                   <TableHeader>
                     <TableRow>
-                      {showCol('serie')      && <TableHead className="whitespace-nowrap">Serie</TableHead>}
-                      {showCol('nombre')     && <TableHead className="whitespace-nowrap">Nombre</TableHead>}
-                      {showCol('modelo')     && <TableHead className="whitespace-nowrap">Modelo</TableHead>}
+                      {showCol('serie')      && <SortableHead field="serie"  label="Serie" />}
+                      {showCol('nombre')     && <SortableHead field="nombre" label="Nombre" />}
+                      {showCol('modelo')     && <SortableHead field="modelo" label="Modelo" />}
                       {showCol('tipo')       && <TableHead className="whitespace-nowrap">Tipo</TableHead>}
                       {showCol('consumo')    && <TableHead className="whitespace-nowrap">Consumo</TableHead>}
-                      {showCol('filial')     && <TableHead className="whitespace-nowrap">Filial</TableHead>}
-                      {showCol('sector')     && <TableHead className="whitespace-nowrap">Sector</TableHead>}
-                      {showCol('estado')     && <TableHead className="whitespace-nowrap">Estado</TableHead>}
+                      {showCol('filial')     && <SortableHead field="filial" label="Filial" />}
+                      {showCol('sector')     && <SortableHead field="sector" label="Sector" />}
+                      {showCol('estado')     && <SortableHead field="estado" label="Estado" />}
                       {showCol('ip')         && <TableHead className="whitespace-nowrap">IP</TableHead>}
-                      {showCol('contadores') && <TableHead className="whitespace-nowrap">Contadores</TableHead>}
+                      {showCol('contadores') && <SortableHead field="contadores" label="Contadores" />}
                       <TableHead className="text-right whitespace-nowrap sticky right-0 bg-background z-20 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.15)]">
                         Acciones
                       </TableHead>
@@ -798,6 +849,15 @@ export default function Impresoras() {
                     ))}
                   </TableBody>
                 </Table>
+                <div className="px-2 py-2 text-xs text-muted-foreground border-t border-border/40">
+                  Ordenado por{' '}
+                  <span className="font-medium text-foreground">
+                    {COLUMN_DEFS.find(c => c.id === (sortField as any))?.label || sortField}
+                  </span>
+                  {' '}({sortDir === 'asc' ? 'A → Z' : 'Z → A'})
+                  {' · '}
+                  {filteredImpresoras.length} impresora{filteredImpresoras.length !== 1 ? 's' : ''}
+                </div>
               </div>
             )}
           </CardContent>
