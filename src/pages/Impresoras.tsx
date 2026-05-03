@@ -747,16 +747,16 @@ export default function Impresoras() {
                 <Table className="w-full">
                   <TableHeader>
                     <TableRow>
-                      {showCol('serie')      && <TableHead className="whitespace-nowrap">Serie</TableHead>}
-                      {showCol('nombre')     && <TableHead className="whitespace-nowrap">Nombre</TableHead>}
-                      {showCol('modelo')     && <TableHead className="whitespace-nowrap">Modelo</TableHead>}
+                      {showCol('serie')      && <SortableHead field="serie"  label="Serie" />}
+                      {showCol('nombre')     && <SortableHead field="nombre" label="Nombre" />}
+                      {showCol('modelo')     && <SortableHead field="modelo" label="Modelo" />}
                       {showCol('tipo')       && <TableHead className="whitespace-nowrap">Tipo</TableHead>}
                       {showCol('consumo')    && <TableHead className="whitespace-nowrap">Consumo</TableHead>}
-                      {showCol('filial')     && <TableHead className="whitespace-nowrap">Filial</TableHead>}
-                      {showCol('sector')     && <TableHead className="whitespace-nowrap">Sector</TableHead>}
-                      {showCol('estado')     && <TableHead className="whitespace-nowrap">Estado</TableHead>}
+                      {showCol('filial')     && <SortableHead field="filial" label="Filial" />}
+                      {showCol('sector')     && <SortableHead field="sector" label="Sector" />}
+                      {showCol('estado')     && <SortableHead field="estado" label="Estado" />}
                       {showCol('ip')         && <TableHead className="whitespace-nowrap">IP</TableHead>}
-                      {showCol('contadores') && <TableHead className="whitespace-nowrap">Contadores</TableHead>}
+                      {showCol('contadores') && <SortableHead field="contadores" label="Contadores" />}
                       <TableHead className="text-right whitespace-nowrap sticky right-0 bg-background z-20 shadow-[-8px_0_12px_-4px_rgba(0,0,0,0.15)]">
                         Acciones
                       </TableHead>
@@ -849,6 +849,15 @@ export default function Impresoras() {
                     ))}
                   </TableBody>
                 </Table>
+                <div className="px-2 py-2 text-xs text-muted-foreground border-t border-border/40">
+                  Ordenado por{' '}
+                  <span className="font-medium text-foreground">
+                    {COLUMN_DEFS.find(c => c.id === (sortField as any))?.label || sortField}
+                  </span>
+                  {' '}({sortDir === 'asc' ? 'A → Z' : 'Z → A'})
+                  {' · '}
+                  {filteredImpresoras.length} impresora{filteredImpresoras.length !== 1 ? 's' : ''}
+                </div>
               </div>
             )}
           </CardContent>
