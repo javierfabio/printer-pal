@@ -574,6 +574,48 @@ export default function RegistroUso() {
                 </DialogHeader>
                 
                 <form onSubmit={handleSubmit} className="space-y-5 mt-4">
+                  {/* Indicador de pasos */}
+                  <div className="flex items-center gap-2 mb-5">
+                    <div className="flex items-center gap-2 flex-1">
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors",
+                        selectedPrinter ? 'bg-success text-success-foreground' : 'bg-primary text-primary-foreground'
+                      )}>
+                        {selectedPrinter ? '✓' : '1'}
+                      </div>
+                      <span className={cn(
+                        "text-sm font-medium transition-colors",
+                        selectedPrinter ? 'text-success' : 'text-foreground'
+                      )}>
+                        Seleccionar impresora
+                      </span>
+                    </div>
+                    <div className={cn(
+                      "h-0.5 flex-1 rounded transition-colors",
+                      selectedPrinter ? 'bg-success' : 'bg-border'
+                    )} />
+                    <div className="flex items-center gap-2 flex-1 justify-end">
+                      <div className={cn(
+                        "w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 transition-colors",
+                        contadorNegro || contadorColor
+                          ? 'bg-success text-success-foreground'
+                          : selectedPrinter
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted text-muted-foreground'
+                      )}>
+                        {contadorNegro || contadorColor ? '✓' : '2'}
+                      </div>
+                      <span className={cn(
+                        "text-sm font-medium transition-colors",
+                        contadorNegro || contadorColor ? 'text-success'
+                          : selectedPrinter ? 'text-foreground'
+                          : 'text-muted-foreground'
+                      )}>
+                        Ingresar contador
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label className="text-sm font-medium">Seleccionar Impresora *</Label>
                     <div className="flex gap-2 items-center mb-2">
@@ -616,7 +658,16 @@ export default function RegistroUso() {
                         )}
                       </div>
                     )}
-                    <Select value={selectedPrinter} onValueChange={setSelectedPrinter}>
+                    <Select
+                      value={selectedPrinter}
+                      onValueChange={(val) => {
+                        setSelectedPrinter(val);
+                        setTimeout(() => {
+                          contadorInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          contadorInputRef.current?.focus();
+                        }, 150);
+                      }}
+                    >
                       <SelectTrigger className="h-11">
                         <SelectValue placeholder="Seleccionar impresora..." />
                       </SelectTrigger>
