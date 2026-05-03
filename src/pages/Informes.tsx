@@ -185,7 +185,7 @@ export default function Informes() {
 
     // Impresoras activas sin lecturas registradas
     const idsConLectura = new Set(lecturas.map(l => l.impresora_id));
-    const sinLecturas = filteredImpresoras.filter(i => i.estado === 'activa' && !idsConLectura.has(i.id));
+    const sinLecturas = filteredImpresoras.filter(i => !idsConLectura.has(i.id));
     if (sinLecturas.length > 0) {
       doc.addPage();
       const slY = addPDFHeader(doc, `Impresoras activas sin lecturas registradas (${sinLecturas.length})`);
