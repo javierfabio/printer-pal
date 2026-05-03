@@ -730,17 +730,25 @@ export default function RegistroUso() {
                         </CardContent>
                       </Card>
 
+                      {selectedPrinterData && contadorNegro === '' && contadorColor === '' && (
+                        <div className="flex justify-center py-1">
+                          <div className="animate-bounce text-primary">
+                            <ChevronDown className="w-5 h-5" />
+                          </div>
+                        </div>
+                      )}
+
                       <div className="space-y-4">
                         {(showOnlyBlack || showBothCounters) && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">Nuevo Contador Negro *</Label>
-                            <Input type="number" min={selectedPrinterData.contador_negro_actual} value={contadorNegro} onChange={e => setContadorNegro(e.target.value)} placeholder={`Mínimo: ${selectedPrinterData.contador_negro_actual}`} className="h-11" required />
+                            <Input ref={contadorInputRef} type="number" inputMode="numeric" min={selectedPrinterData.contador_negro_actual} value={contadorNegro} onChange={e => setContadorNegro(e.target.value)} placeholder={`Mínimo: ${selectedPrinterData.contador_negro_actual}`} className={cn("h-11", selectedPrinter && !contadorNegro && "ring-2 ring-primary ring-offset-1")} required />
                           </div>
                         )}
                         {(showOnlyColor || showBothCounters) && (
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">Nuevo Contador Color *</Label>
-                            <Input type="number" min={selectedPrinterData.contador_color_actual} value={contadorColor} onChange={e => setContadorColor(e.target.value)} placeholder={`Mínimo: ${selectedPrinterData.contador_color_actual}`} className="h-11" required />
+                            <Input ref={showOnlyColor ? contadorInputRef : undefined} type="number" inputMode="numeric" min={selectedPrinterData.contador_color_actual} value={contadorColor} onChange={e => setContadorColor(e.target.value)} placeholder={`Mínimo: ${selectedPrinterData.contador_color_actual}`} className={cn("h-11", selectedPrinter && !contadorColor && showOnlyColor && "ring-2 ring-primary ring-offset-1")} required />
                           </div>
                         )}
                       </div>
