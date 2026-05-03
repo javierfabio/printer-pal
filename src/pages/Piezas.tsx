@@ -251,7 +251,7 @@ export default function Piezas() {
               vida_util_estimada: cat.vida_util_estimada,
               contador_instalacion: (imp.contador_negro_actual || 0) + (imp.contador_color_actual || 0),
               paginas_consumidas: 0,
-              fecha_instalacion: new Date().toISOString(),
+              fecha_instalacion: imp.fecha_registro || imp.created_at || new Date().toISOString(),
               activo: true,
               notas: 'Pieza generada automáticamente desde catálogo',
               impresoras: {
