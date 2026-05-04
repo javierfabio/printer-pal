@@ -408,6 +408,7 @@ export default function Informes() {
           </>
         )}
       </div>
+      )}
     </DashboardLayout>
   );
 }
