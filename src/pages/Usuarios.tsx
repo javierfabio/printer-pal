@@ -14,7 +14,8 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
-  KeyRound
+  KeyRound,
+  ShieldCheck
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -31,6 +32,7 @@ import { AddUserDialog } from '@/components/users/AddUserDialog';
 import { EditUserDialog } from '@/components/users/EditUserDialog';
 import { DeleteUserDialog } from '@/components/users/DeleteUserDialog';
 import { ChangePasswordDialog } from '@/components/users/ChangePasswordDialog';
+import { EditPermissionsDialog } from '@/components/users/EditPermissionsDialog';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
 
 interface UserWithRole {
@@ -53,6 +55,8 @@ export default function Usuarios() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+  const [selectedUserForPerms, setSelectedUserForPerms] = useState<UserWithRole | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
 
   const isAdmin = role === 'admin';
@@ -146,6 +150,11 @@ export default function Usuarios() {
   const handleChangePassword = (user: UserWithRole) => {
     setSelectedUser(user);
     setPasswordDialogOpen(true);
+  };
+
+  const handleEditPermisos = (user: UserWithRole) => {
+    setSelectedUserForPerms(user);
+    setPermissionsDialogOpen(true);
   };
 
   if (!isAdmin) {
@@ -357,6 +366,12 @@ export default function Usuarios() {
                                 <KeyRound className="w-4 h-4 mr-2" />
                                 Cambiar Contraseña
                               </DropdownMenuItem>
+                              {user.role === 'user' && (
+                                <DropdownMenuItem onClick={() => handleEditPermisos(user)}>
+                                  <ShieldCheck className="w-4 h-4 mr-2" />
+                                  Editar permisos
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 
                                 onClick={() => handleDeleteUser(user)}
@@ -434,6 +449,12 @@ export default function Usuarios() {
         user={selectedUser}
         open={passwordDialogOpen}
         onOpenChange={setPasswordDialogOpen}
+      />
+
+      <EditPermissionsDialog
+        user={selectedUserForPerms}
+        open={permissionsDialogOpen}
+        onOpenChange={setPermissionsDialogOpen}
       />
     </DashboardLayout>
   );

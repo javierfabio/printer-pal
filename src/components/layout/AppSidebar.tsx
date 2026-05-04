@@ -10,6 +10,7 @@ import { getSystemConfig } from '@/lib/systemConfig';
 import { Badge } from '@/components/ui/badge';
 import { usePartsAlertsContext } from '@/contexts/PartsAlertsContext';
 import { supabase } from '@/integrations/supabase/client';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface MenuItem {
   title: string;
@@ -17,19 +18,19 @@ interface MenuItem {
   icon: React.ElementType;
   adminOnly?: boolean;
   priority?: boolean;
+  permKey?: keyof ReturnType<typeof usePermissions>;
 }
 
 const menuItems: MenuItem[] = [
   { title: 'Inicio', url: '/dashboard', icon: Home },
-  { title: 'Registro de Uso', url: '/dashboard/registro-uso', icon: ClipboardList },
-  { title: 'Gestión de Piezas', url: '/dashboard/piezas', icon: Wrench },
-  
-  { title: 'Registrar Impresora', url: '/dashboard/impresoras', icon: Printer, adminOnly: true },
-  { title: 'Informes', url: '/dashboard/informes', icon: BarChart3 },
-  { title: 'Historial', url: '/dashboard/historial', icon: History },
-  { title: 'Costos', url: '/dashboard/costos', icon: DollarSign },
+  { title: 'Registro de Uso', url: '/dashboard/registro-uso', icon: ClipboardList, permKey: 'can_view_lecturas' },
+  { title: 'Gestión de Piezas', url: '/dashboard/piezas', icon: Wrench, permKey: 'can_view_piezas' },
+  { title: 'Registrar Impresora', url: '/dashboard/impresoras', icon: Printer, permKey: 'can_view_impresoras' },
+  { title: 'Informes', url: '/dashboard/informes', icon: BarChart3, permKey: 'can_view_informes' },
+  { title: 'Historial', url: '/dashboard/historial', icon: History, permKey: 'can_view_historial' },
+  { title: 'Costos', url: '/dashboard/costos', icon: DollarSign, permKey: 'can_view_costos' },
   { title: 'Usuarios', url: '/dashboard/usuarios', icon: Users, adminOnly: true },
-  { title: 'Configuraciones', url: '/dashboard/configuraciones', icon: Settings, adminOnly: true },
+  { title: 'Configuraciones', url: '/dashboard/configuraciones', icon: Settings, permKey: 'can_view_config' },
 ];
 
 export function AppSidebar() {
@@ -64,7 +65,12 @@ export function AppSidebar() {
   };
 
   const isAdmin = role === 'admin';
-  const visibleItems = menuItems.filter(item => !item.adminOnly || isAdmin);
+  const perms = usePermissions();
+  const visibleItems = menuItems.filter(item => {
+    if (item.adminOnly) return isAdmin;
+    if (item.permKey) return (perms as any)[item.permKey];
+    return true;
+  });
 
   return (
     <TooltipProvider delayDuration={0}>

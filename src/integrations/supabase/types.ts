@@ -675,6 +675,72 @@ export type Database = {
         }
         Relationships: []
       }
+      user_permissions: {
+        Row: {
+          can_create_impresoras: boolean
+          can_create_lecturas: boolean
+          can_delete_impresoras: boolean
+          can_delete_lecturas: boolean
+          can_edit_costos: boolean
+          can_edit_impresoras: boolean
+          can_edit_piezas: boolean
+          can_export_informes: boolean
+          can_view_config: boolean
+          can_view_costos: boolean
+          can_view_historial: boolean
+          can_view_impresoras: boolean
+          can_view_informes: boolean
+          can_view_lecturas: boolean
+          can_view_piezas: boolean
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          can_create_impresoras?: boolean
+          can_create_lecturas?: boolean
+          can_delete_impresoras?: boolean
+          can_delete_lecturas?: boolean
+          can_edit_costos?: boolean
+          can_edit_impresoras?: boolean
+          can_edit_piezas?: boolean
+          can_export_informes?: boolean
+          can_view_config?: boolean
+          can_view_costos?: boolean
+          can_view_historial?: boolean
+          can_view_impresoras?: boolean
+          can_view_informes?: boolean
+          can_view_lecturas?: boolean
+          can_view_piezas?: boolean
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          can_create_impresoras?: boolean
+          can_create_lecturas?: boolean
+          can_delete_impresoras?: boolean
+          can_delete_lecturas?: boolean
+          can_edit_costos?: boolean
+          can_edit_impresoras?: boolean
+          can_edit_piezas?: boolean
+          can_export_informes?: boolean
+          can_view_config?: boolean
+          can_view_costos?: boolean
+          can_view_historial?: boolean
+          can_view_impresoras?: boolean
+          can_view_informes?: boolean
+          can_view_lecturas?: boolean
+          can_view_piezas?: boolean
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string

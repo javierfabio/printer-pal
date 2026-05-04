@@ -11,6 +11,7 @@ import { Plus, Loader2, Search, Package, Pencil, Download, FileText } from 'luci
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
@@ -47,6 +48,7 @@ export default function CatalogoPiezas() {
   });
 
   const isAdmin = role === 'admin';
+  const perms = usePermissions();
 
   useEffect(() => { fetchData(); }, []);
 
@@ -149,7 +151,7 @@ export default function CatalogoPiezas() {
           </div>
           <div className="flex gap-2">
             <Button onClick={exportPDF} variant="outline" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
-            {isAdmin && <Button onClick={openNew} className="gap-2"><Plus className="w-4 h-4" />Nueva Pieza</Button>}
+            {perms.can_edit_piezas && <Button onClick={openNew} className="gap-2"><Plus className="w-4 h-4" />Nueva Pieza</Button>}
           </div>
         </div>
 
@@ -188,7 +190,7 @@ export default function CatalogoPiezas() {
                       <TableHead className="text-right">Vida Útil</TableHead>
                       <TableHead className="text-right">Stock Actual</TableHead>
                       <TableHead>Última Carga</TableHead>
-                      {isAdmin && <TableHead className="w-10"></TableHead>}
+                      {perms.can_edit_piezas && <TableHead className="w-10"></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -212,7 +214,7 @@ export default function CatalogoPiezas() {
                         <TableCell className="text-muted-foreground">
                           {p.fecha_ultima_carga ? new Date(p.fecha_ultima_carga).toLocaleDateString('es') : '-'}
                         </TableCell>
-                        {isAdmin && (
+                        {perms.can_edit_piezas && (
                           <TableCell>
                             <Button variant="ghost" size="icon" onClick={() => openEdit(p)}>
                               <Pencil className="w-4 h-4" />

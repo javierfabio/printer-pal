@@ -28,6 +28,8 @@ import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Shield } from 'lucide-react';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
@@ -91,6 +93,7 @@ export default function Costos() {
   const [repDialogOpen, setRepDialogOpen] = useState(false);
 
   const isAdmin = role === 'admin';
+  const perms = usePermissions();
 
   useEffect(() => { fetchData(); }, []);
 
@@ -292,6 +295,13 @@ export default function Costos() {
 
   return (
     <DashboardLayout>
+      {!perms.can_view_costos && !loading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Shield className="w-16 h-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Acceso Restringido</h2>
+          <p className="text-muted-foreground">No tenés permisos para ver los costos.</p>
+        </div>
+      ) : (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -354,7 +364,7 @@ export default function Costos() {
                         <CardTitle>Precios por Modelo de Impresora</CardTitle>
                         <CardDescription>Precio por página B/N y Color según el modelo</CardDescription>
                       </div>
-                      {isAdmin && (
+                      {perms.can_edit_costos && (
                         <div className="flex gap-2">
                         {modelosSinPrecio.length > 0 && (
                           <Button size="sm" variant="outline" className="gap-2 border-warning text-warning hover:bg-warning/10" onClick={openWizard}>
@@ -421,7 +431,7 @@ export default function Costos() {
                               <TableHead>Modelo</TableHead>
                               <TableHead className="text-right">Precio B/N (gs)</TableHead>
                               <TableHead className="text-right">Precio Color (gs)</TableHead>
-                              {isAdmin && <TableHead className="text-right">Acciones</TableHead>}
+                              {perms.can_edit_costos && <TableHead className="text-right">Acciones</TableHead>}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -430,7 +440,7 @@ export default function Costos() {
                                 <TableCell className="font-medium">{p.modelo}</TableCell>
                                 <TableCell className="text-right font-mono">{p.precio_bn.toLocaleString()} gs</TableCell>
                                 <TableCell className="text-right font-mono">{p.precio_color !== null ? `${p.precio_color.toLocaleString()} gs` : '—'}</TableCell>
-                                {isAdmin && (
+                                {perms.can_edit_costos && (
                                   <TableCell className="text-right">
                                     <ConfirmDeleteButton
                                       onConfirm={() => deletePrecio(p.id!)}
@@ -458,7 +468,7 @@ export default function Costos() {
                         <CardTitle>Costos de Reparación (Mano de Obra)</CardTitle>
                         <CardDescription>Registro independiente de costos por tipo de reparación</CardDescription>
                       </div>
-                      {isAdmin && (
+                      {perms.can_edit_costos && (
                         <Dialog open={repDialogOpen} onOpenChange={setRepDialogOpen}>
                           <DialogTrigger asChild>
                             <Button size="sm" className="gap-2"><Plus className="w-4 h-4" />Agregar Reparación</Button>
@@ -504,7 +514,7 @@ export default function Costos() {
                               <TableHead>Tipo de Reparación</TableHead>
                               <TableHead>Descripción</TableHead>
                               <TableHead className="text-right">Costo (gs)</TableHead>
-                              {isAdmin && <TableHead className="text-right">Acciones</TableHead>}
+                              {perms.can_edit_costos && <TableHead className="text-right">Acciones</TableHead>}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -513,7 +523,7 @@ export default function Costos() {
                                 <TableCell className="font-medium">{r.tipo_reparacion}</TableCell>
                                 <TableCell className="text-muted-foreground">{r.descripcion || '-'}</TableCell>
                                 <TableCell className="text-right font-mono font-semibold">{r.costo.toLocaleString()} gs</TableCell>
-                                {isAdmin && (
+                                {perms.can_edit_costos && (
                                   <TableCell className="text-right">
                                     <ConfirmDeleteButton
                                       onConfirm={() => deleteReparacion(r.id!)}
@@ -687,6 +697,7 @@ export default function Costos() {
           </DialogContent>
         </Dialog>
       </div>
+      )}
     </DashboardLayout>
   );
 }
