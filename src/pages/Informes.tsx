@@ -13,6 +13,8 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Shield } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RechartsPie, Pie, Cell, Legend } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -32,6 +34,7 @@ const TIPO_PIEZA_LABELS: Record<string, string> = { toner_negro: 'Tóner Negro',
 
 export default function Informes() {
   const { role } = useAuth();
+  const perms = usePermissions();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [impresoras, setImpresoras] = useState<Impresora[]>([]);
@@ -223,6 +226,13 @@ export default function Informes() {
 
   return (
     <DashboardLayout>
+      {!perms.can_view_informes && !loading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Shield className="w-16 h-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Acceso Restringido</h2>
+          <p className="text-muted-foreground">No tenés permisos para ver los informes.</p>
+        </div>
+      ) : (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -230,8 +240,8 @@ export default function Informes() {
             <p className="text-muted-foreground mt-1">Análisis con filtros Filial → Sector → Modelo → Impresora</p>
           </div>
           <div className="flex gap-2">
-            <Button onClick={exportToCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV/Excel</Button>
-            <Button onClick={exportToPDF} className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
+            {perms.can_export_informes && <Button onClick={exportToCSV} variant="outline" className="gap-2"><Download className="w-4 h-4" />CSV/Excel</Button>}
+            {perms.can_export_informes && <Button onClick={exportToPDF} className="gap-2"><FileText className="w-4 h-4" />PDF</Button>}
           </div>
         </div>
 
