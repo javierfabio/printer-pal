@@ -28,6 +28,8 @@ import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Shield } from 'lucide-react';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
@@ -91,6 +93,7 @@ export default function Costos() {
   const [repDialogOpen, setRepDialogOpen] = useState(false);
 
   const isAdmin = role === 'admin';
+  const perms = usePermissions();
 
   useEffect(() => { fetchData(); }, []);
 
