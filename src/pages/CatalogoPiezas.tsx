@@ -11,6 +11,7 @@ import { Plus, Loader2, Search, Package, Pencil, Download, FileText } from 'luci
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { usePermissions } from '@/hooks/usePermissions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addPDFHeader, addPDFPageNumbers } from '@/lib/pdfHeader';
@@ -47,6 +48,7 @@ export default function CatalogoPiezas() {
   });
 
   const isAdmin = role === 'admin';
+  const perms = usePermissions();
 
   useEffect(() => { fetchData(); }, []);
 
