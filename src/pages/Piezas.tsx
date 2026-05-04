@@ -825,7 +825,7 @@ export default function Piezas() {
               <Package className="w-4 h-4" />
               Stock
             </TabsTrigger>
-            {isAdmin && (
+            {perms.can_edit_piezas && (
               <TabsTrigger value="configuracion" className="gap-2">
                 <Settings className="w-4 h-4" />
                 Configuración
@@ -1047,7 +1047,7 @@ export default function Piezas() {
                   </div>
                   <div className="flex gap-2">
                     <Button onClick={exportCatalogoPDF} variant="outline" size="sm" className="gap-2"><FileText className="w-4 h-4" />PDF</Button>
-                    {isAdmin && <Button onClick={openNewCatalogo} size="sm" className="gap-2"><Plus className="w-4 h-4" />Nueva Pieza</Button>}
+                    {perms.can_edit_piezas && <Button onClick={openNewCatalogo} size="sm" className="gap-2"><Plus className="w-4 h-4" />Nueva Pieza</Button>}
                   </div>
                 </div>
               </CardHeader>
@@ -1074,7 +1074,7 @@ export default function Piezas() {
                           <TableHead className="text-right">Vida Útil</TableHead>
                           <TableHead className="text-right">Stock Actual</TableHead>
                           <TableHead>Última Carga</TableHead>
-                          {isAdmin && <TableHead className="w-10"></TableHead>}
+                          {perms.can_edit_piezas && <TableHead className="w-10"></TableHead>}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1098,7 +1098,7 @@ export default function Piezas() {
                             <TableCell className="text-muted-foreground">
                               {p.fecha_ultima_carga ? new Date(p.fecha_ultima_carga).toLocaleDateString('es') : '-'}
                             </TableCell>
-                            {isAdmin && (
+                            {perms.can_edit_piezas && (
                               <TableCell>
                                 <Button variant="ghost" size="icon" onClick={() => openEditCatalogo(p)}>
                                   <Pencil className="w-4 h-4" />
@@ -1123,7 +1123,7 @@ export default function Piezas() {
             />
           </TabsContent>
 
-          {isAdmin && (
+          {perms.can_edit_piezas && (
             <TabsContent value="configuracion">
               <Card>
                 <CardHeader>
