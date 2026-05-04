@@ -520,6 +520,7 @@ export default function Piezas() {
   };
 
   const isAdmin = role === 'admin';
+  const perms = usePermissions();
 
   // Piezas con alertas
   const piezasConAlerta = piezas.filter(p => {
