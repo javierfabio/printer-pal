@@ -178,7 +178,7 @@ export default function Configuraciones() {
   const toggleSectorActive = async (id: string, activo: boolean) => { await supabase.from('sectores').update({ activo }).eq('id', id); fetchData(); };
   const toggleFilialActive = async (id: string, activo: boolean) => { await supabase.from('filiales').update({ activo }).eq('id', id); fetchData(); };
 
-  if (!isAdmin) {
+  if (!isAdmin && !(usePermsView())) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-20">
