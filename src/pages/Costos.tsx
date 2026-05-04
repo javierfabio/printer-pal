@@ -697,6 +697,7 @@ export default function Costos() {
           </DialogContent>
         </Dialog>
       </div>
+      )}
     </DashboardLayout>
   );
 }
