@@ -295,6 +295,13 @@ export default function Costos() {
 
   return (
     <DashboardLayout>
+      {!perms.can_view_costos && !loading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Shield className="w-16 h-16 text-muted-foreground mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Acceso Restringido</h2>
+          <p className="text-muted-foreground">No tenés permisos para ver los costos.</p>
+        </div>
+      ) : (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
