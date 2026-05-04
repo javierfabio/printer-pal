@@ -364,7 +364,7 @@ export default function Costos() {
                         <CardTitle>Precios por Modelo de Impresora</CardTitle>
                         <CardDescription>Precio por página B/N y Color según el modelo</CardDescription>
                       </div>
-                      {isAdmin && (
+                      {perms.can_edit_costos && (
                         <div className="flex gap-2">
                         {modelosSinPrecio.length > 0 && (
                           <Button size="sm" variant="outline" className="gap-2 border-warning text-warning hover:bg-warning/10" onClick={openWizard}>
@@ -431,7 +431,7 @@ export default function Costos() {
                               <TableHead>Modelo</TableHead>
                               <TableHead className="text-right">Precio B/N (gs)</TableHead>
                               <TableHead className="text-right">Precio Color (gs)</TableHead>
-                              {isAdmin && <TableHead className="text-right">Acciones</TableHead>}
+                              {perms.can_edit_costos && <TableHead className="text-right">Acciones</TableHead>}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -440,7 +440,7 @@ export default function Costos() {
                                 <TableCell className="font-medium">{p.modelo}</TableCell>
                                 <TableCell className="text-right font-mono">{p.precio_bn.toLocaleString()} gs</TableCell>
                                 <TableCell className="text-right font-mono">{p.precio_color !== null ? `${p.precio_color.toLocaleString()} gs` : '—'}</TableCell>
-                                {isAdmin && (
+                                {perms.can_edit_costos && (
                                   <TableCell className="text-right">
                                     <ConfirmDeleteButton
                                       onConfirm={() => deletePrecio(p.id!)}
@@ -468,7 +468,7 @@ export default function Costos() {
                         <CardTitle>Costos de Reparación (Mano de Obra)</CardTitle>
                         <CardDescription>Registro independiente de costos por tipo de reparación</CardDescription>
                       </div>
-                      {isAdmin && (
+                      {perms.can_edit_costos && (
                         <Dialog open={repDialogOpen} onOpenChange={setRepDialogOpen}>
                           <DialogTrigger asChild>
                             <Button size="sm" className="gap-2"><Plus className="w-4 h-4" />Agregar Reparación</Button>
@@ -514,7 +514,7 @@ export default function Costos() {
                               <TableHead>Tipo de Reparación</TableHead>
                               <TableHead>Descripción</TableHead>
                               <TableHead className="text-right">Costo (gs)</TableHead>
-                              {isAdmin && <TableHead className="text-right">Acciones</TableHead>}
+                              {perms.can_edit_costos && <TableHead className="text-right">Acciones</TableHead>}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -523,7 +523,7 @@ export default function Costos() {
                                 <TableCell className="font-medium">{r.tipo_reparacion}</TableCell>
                                 <TableCell className="text-muted-foreground">{r.descripcion || '-'}</TableCell>
                                 <TableCell className="text-right font-mono font-semibold">{r.costo.toLocaleString()} gs</TableCell>
-                                {isAdmin && (
+                                {perms.can_edit_costos && (
                                   <TableCell className="text-right">
                                     <ConfirmDeleteButton
                                       onConfirm={() => deleteReparacion(r.id!)}
