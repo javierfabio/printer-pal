@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -535,7 +536,7 @@ export default function Impresoras() {
               <QrCode className="w-4 h-4" />
               QR ({filteredImpresoras.length})
             </Button>
-            {isAdmin && (
+            {perms.can_create_impresoras && (
               <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
                 <DialogTrigger asChild>
                   <Button className="gap-2"><Plus className="w-4 h-4" />Nueva Impresora</Button>
@@ -831,7 +832,7 @@ export default function Impresoras() {
                           onClick={(e) => e.stopPropagation()}
                         >
                           <div className="flex justify-end gap-1">
-                            {isAdmin && <Button variant="ghost" size="icon" title="Editar impresora" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
+                            {perms.can_edit_impresoras && <Button variant="ghost" size="icon" title="Editar impresora" onClick={() => handleEdit(imp)}><Edit className="w-4 h-4" /></Button>}
                             <Button variant="ghost" size="icon" title="Ver historial" onClick={() => openHistorial(imp)}><History className="w-4 h-4" /></Button>
                             <Button variant="ghost" size="icon" title="Generar etiqueta QR" onClick={async (e) => {
                               e.stopPropagation();
