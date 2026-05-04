@@ -467,6 +467,7 @@ export default function Impresoras() {
   };
 
   const isAdmin = role === 'admin';
+  const perms = usePermissions();
 
   return (
     <DashboardLayout>
