@@ -94,6 +94,21 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
   const handleSave = async () => {
     if (!user || !form.pieza_catalogo_id || form.cantidad <= 0) return;
     setSaving(true);
+
+    // Validar stock suficiente para salidas
+    if (tipo === 'salida') {
+      const piezaActual = piezas.find(p => p.id === form.pieza_catalogo_id);
+      if (piezaActual && piezaActual.stock_actual < form.cantidad) {
+        toast({
+          variant: 'destructive',
+          title: 'Stock insuficiente',
+          description: `Solo hay ${piezaActual.stock_actual} unidad(es) en stock de "${piezaActual.nombre_pieza}".`,
+        });
+        setSaving(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from('movimientos_stock').insert({
       pieza_catalogo_id: form.pieza_catalogo_id,
       tipo_movimiento: tipo,
@@ -109,12 +124,67 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
     });
     if (error) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
-    } else {
-      toast({ title: 'Movimiento registrado', description: `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de ${form.cantidad} unidad(es).` });
-      setOpen(false);
-      fetchMovimientos();
-      onChange?.();
+      setSaving(false);
+      return;
     }
+
+    // Actualizar stock_actual en piezas_catalogo
+    const { data: piezaActual } = await supabase
+      .from('piezas_catalogo')
+      .select('stock_actual')
+      .eq('id', form.pieza_catalogo_id)
+      .single();
+
+    if (piezaActual) {
+      const stockAnterior = piezaActual.stock_actual || 0;
+      const nuevoStock = tipo === 'entrada'
+        ? stockAnterior + form.cantidad
+        : Math.max(0, stockAnterior - form.cantidad);
+
+      const updatePayload: any = { stock_actual: nuevoStock };
+      if (tipo === 'entrada') updatePayload.fecha_ultima_carga = new Date().toISOString();
+
+      await supabase
+        .from('piezas_catalogo')
+        .update(updatePayload)
+        .eq('id', form.pieza_catalogo_id);
+    }
+
+    // Si es salida con impresora, registrar en piezas_impresora
+    if (tipo === 'salida' && form.impresora_id) {
+      const piezaSeleccionada = piezas.find(p => p.id === form.pieza_catalogo_id) as any;
+      if (piezaSeleccionada) {
+        const { data: impresora } = await supabase
+          .from('impresoras')
+          .select('contador_negro_actual, contador_color_actual')
+          .eq('id', form.impresora_id)
+          .single();
+
+        const contadorActual = impresora
+          ? (impresora.contador_negro_actual || 0) + (impresora.contador_color_actual || 0)
+          : 0;
+
+        await supabase.from('piezas_impresora').upsert({
+          impresora_id: form.impresora_id,
+          tipo_pieza: piezaSeleccionada.tipo_pieza,
+          nombre_pieza: piezaSeleccionada.nombre_pieza,
+          vida_util_estimada: piezaSeleccionada.vida_util_estimada || 0,
+          contador_instalacion: contadorActual,
+          paginas_consumidas: 0,
+          fecha_instalacion: new Date().toISOString(),
+          activo: true,
+          notas: form.motivo || form.notas || null,
+        } as any, { onConflict: 'impresora_id,tipo_pieza' });
+      }
+    }
+
+    toast({
+      title: '✅ Movimiento registrado',
+      description: `${tipo === 'entrada' ? 'Entrada' : 'Salida'} de ${form.cantidad} unidad(es) registrada correctamente.`,
+    });
+    setOpen(false);
+    fetchMovimientos();
+    onChange?.();
     setSaving(false);
   };
 
