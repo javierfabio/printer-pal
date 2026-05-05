@@ -371,6 +371,12 @@ export default function Impresoras() {
     else if (data) { setSectores([...sectores, data]); setFormData({ ...formData, sector_id: data.id }); setNewSectorOpen(false); setNewSectorName(''); toast({ title: 'Éxito', description: 'Sector creado' }); }
   };
 
+  const handleDeletePrinter = async (id: string) => {
+    const { error } = await supabase.from('impresoras').delete().eq('id', id);
+    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
+    else { toast({ title: 'Impresora eliminada', description: 'La impresora fue eliminada correctamente.' }); fetchData(); }
+  };
+
   const handleAddFilial = async () => {
     if (!newFilialName.trim()) return;
     const { data, error } = await supabase.from('filiales').insert({ nombre: newFilialName.trim() }).select().single();
