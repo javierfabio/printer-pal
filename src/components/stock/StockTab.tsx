@@ -18,6 +18,7 @@ interface PiezaCatalogo {
   nombre_pieza: string;
   tipo_pieza: string;
   stock_actual: number;
+  vida_util_estimada: number;
 }
 
 interface Impresora {
