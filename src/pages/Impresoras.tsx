@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { z } from 'zod';
 import { useSearchParams } from 'react-router-dom';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
+import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
 
 type TipoConsumo = 'tinta' | 'toner';
 
