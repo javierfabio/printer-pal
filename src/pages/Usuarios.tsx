@@ -43,6 +43,21 @@ interface UserWithRole {
   role: 'admin' | 'user';
 }
 
+function PermsBadge({ userId }: { userId: string }) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    supabase.from('user_permissions').select('*').eq('user_id', userId)
+      .maybeSingle().then(({ data }) => {
+        if (data) {
+          const { id, user_id, created_at, updated_at, ...p } = data as any;
+          setCount(Object.values(p).filter(Boolean).length);
+        } else setCount(null);
+      });
+  }, [userId]);
+  if (count === null) return <p className="text-[10px] text-muted-foreground mt-1">Permisos por defecto</p>;
+  return <p className="text-[10px] text-primary mt-1">{count} permiso{count !== 1 ? 's' : ''} personalizado{count !== 1 ? 's' : ''}</p>;
+}
+
 export default function Usuarios() {
   const { role, user: currentUser } = useAuth();
   const { toast } = useToast();
@@ -316,6 +331,7 @@ export default function Usuarios() {
                               <><UserCheck className="w-3 h-3 mr-1" /> Usuario de Registro</>
                             )}
                           </Badge>
+                          {user.role === 'user' && <PermsBadge userId={user.id} />}
                         </TableCell>
                         <TableCell>
                           <Select

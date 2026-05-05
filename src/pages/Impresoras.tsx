@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils';
 import { z } from 'zod';
 import { useSearchParams } from 'react-router-dom';
 import { FetchErrorState } from '@/components/ui/fetch-error-state';
+import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
 
 type TipoConsumo = 'tinta' | 'toner';
 
@@ -368,6 +369,12 @@ export default function Impresoras() {
     const { data, error } = await supabase.from('sectores').insert({ nombre: newSectorName.trim() }).select().single();
     if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
     else if (data) { setSectores([...sectores, data]); setFormData({ ...formData, sector_id: data.id }); setNewSectorOpen(false); setNewSectorName(''); toast({ title: 'Éxito', description: 'Sector creado' }); }
+  };
+
+  const handleDeletePrinter = async (id: string) => {
+    const { error } = await supabase.from('impresoras').delete().eq('id', id);
+    if (error) toast({ variant: 'destructive', title: 'Error', description: error.message });
+    else { toast({ title: 'Impresora eliminada', description: 'La impresora fue eliminada correctamente.' }); fetchData(); }
   };
 
   const handleAddFilial = async () => {
@@ -845,6 +852,13 @@ export default function Impresoras() {
                                 sector: (imp as any).sectores?.nombre || '',
                               });
                             }}><QrCode className="w-4 h-4" /></Button>
+                            {perms.can_delete_impresoras && (
+                              <ConfirmDeleteButton
+                                onConfirm={() => handleDeletePrinter(imp.id)}
+                                title="¿Eliminar impresora?"
+                                description={`Se eliminará permanentemente "${imp.nombre} — ${imp.serie}" con todo su historial.`}
+                              />
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
