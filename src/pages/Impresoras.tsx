@@ -852,6 +852,13 @@ export default function Impresoras() {
                                 sector: (imp as any).sectores?.nombre || '',
                               });
                             }}><QrCode className="w-4 h-4" /></Button>
+                            {perms.can_delete_impresoras && (
+                              <ConfirmDeleteButton
+                                onConfirm={() => handleDeletePrinter(imp.id)}
+                                title="¿Eliminar impresora?"
+                                description={`Se eliminará permanentemente "${imp.nombre} — ${imp.serie}" con todo su historial.`}
+                              />
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
