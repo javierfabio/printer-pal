@@ -1117,7 +1117,13 @@ export default function Piezas() {
 
           <TabsContent value="stock">
             <StockTab
-              piezas={catalogo.map(c => ({ id: c.id, nombre_pieza: c.nombre_pieza, tipo_pieza: c.tipo_pieza, stock_actual: c.stock_actual }))}
+              piezas={catalogo.map(c => ({
+                id: c.id,
+                nombre_pieza: c.nombre_pieza,
+                tipo_pieza: c.tipo_pieza,
+                stock_actual: c.stock_actual,
+                vida_util_estimada: c.vida_util_estimada,
+              }))}
               impresoras={impresoras.map(i => ({ id: i.id, nombre: i.nombre, serie: i.serie }))}
               onChange={fetchData}
             />

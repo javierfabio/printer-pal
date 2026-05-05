@@ -18,6 +18,7 @@ interface PiezaCatalogo {
   nombre_pieza: string;
   tipo_pieza: string;
   stock_actual: number;
+  vida_util_estimada: number;
 }
 
 interface Impresora {
@@ -150,9 +151,9 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
         .eq('id', form.pieza_catalogo_id);
     }
 
-    // Si es salida con impresora, registrar en piezas_impresora
+    // Si es salida con impresora vinculada, instalar/reemplazar pieza en piezas_impresora
     if (tipo === 'salida' && form.impresora_id) {
-      const piezaSeleccionada = piezas.find(p => p.id === form.pieza_catalogo_id) as any;
+      const piezaSeleccionada = piezas.find(p => p.id === form.pieza_catalogo_id);
       if (piezaSeleccionada) {
         const { data: impresora } = await supabase
           .from('impresoras')
@@ -164,17 +165,87 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
           ? (impresora.contador_negro_actual || 0) + (impresora.contador_color_actual || 0)
           : 0;
 
-        await supabase.from('piezas_impresora').upsert({
-          impresora_id: form.impresora_id,
-          tipo_pieza: piezaSeleccionada.tipo_pieza,
-          nombre_pieza: piezaSeleccionada.nombre_pieza,
-          vida_util_estimada: piezaSeleccionada.vida_util_estimada || 0,
-          contador_instalacion: contadorActual,
-          paginas_consumidas: 0,
-          fecha_instalacion: new Date().toISOString(),
-          activo: true,
-          notas: form.motivo || form.notas || null,
-        } as any, { onConflict: 'impresora_id,tipo_pieza' });
+        // Buscar si ya existe una pieza activa del mismo tipo en esa impresora
+        const { data: piezaExistente } = await supabase
+          .from('piezas_impresora')
+          .select('id, paginas_consumidas, contador_instalacion, vida_util_estimada, nombre_pieza')
+          .eq('impresora_id', form.impresora_id)
+          .eq('tipo_pieza', piezaSeleccionada.tipo_pieza as any)
+          .eq('activo', true)
+          .maybeSingle();
+
+        if (piezaExistente) {
+          // Reemplazo: registrar historial y resetear la pieza existente
+          const vidaUtilReal = Math.max(
+            0,
+            (contadorActual - (piezaExistente.contador_instalacion || 0)) +
+              (piezaExistente.paginas_consumidas || 0)
+          );
+          const porcentajeVidaConsumida = piezaExistente.vida_util_estimada > 0
+            ? Math.min(100, (vidaUtilReal / piezaExistente.vida_util_estimada) * 100)
+            : 0;
+
+          await supabase.from('historial_piezas').insert({
+            impresora_id: form.impresora_id,
+            pieza_anterior_id: piezaExistente.id,
+            tipo_pieza: piezaSeleccionada.tipo_pieza as any,
+            nombre_pieza: piezaExistente.nombre_pieza,
+            contador_cambio: contadorActual,
+            vida_util_estimada: piezaExistente.vida_util_estimada || 0,
+            vida_util_real: vidaUtilReal,
+            porcentaje_vida_consumida: porcentajeVidaConsumida,
+            motivo: form.motivo || 'Reemplazo desde stock',
+            observaciones: form.notas || null,
+            tecnico_id: user.id,
+          } as any);
+
+          await supabase
+            .from('piezas_impresora')
+            .update({
+              contador_instalacion: contadorActual,
+              paginas_consumidas: 0,
+              fecha_instalacion: new Date().toISOString(),
+              nombre_pieza: piezaSeleccionada.nombre_pieza,
+              vida_util_estimada: piezaSeleccionada.vida_util_estimada || 0,
+              notas: form.motivo || form.notas || null,
+              activo: true,
+            })
+            .eq('id', piezaExistente.id);
+        } else {
+          // Instalación inicial
+          const { data: nuevaPieza } = await supabase
+            .from('piezas_impresora')
+            .insert({
+              impresora_id: form.impresora_id,
+              tipo_pieza: piezaSeleccionada.tipo_pieza as any,
+              nombre_pieza: piezaSeleccionada.nombre_pieza,
+              vida_util_estimada: piezaSeleccionada.vida_util_estimada || 0,
+              contador_instalacion: contadorActual,
+              paginas_consumidas: 0,
+              fecha_instalacion: new Date().toISOString(),
+              activo: true,
+              notas: form.motivo || form.notas || null,
+              instalado_por: user.id,
+            })
+            .select()
+            .single();
+
+          if (nuevaPieza) {
+            await supabase.from('historial_piezas').insert({
+              impresora_id: form.impresora_id,
+              pieza_anterior_id: null,
+              tipo_pieza: piezaSeleccionada.tipo_pieza as any,
+              nombre_pieza: piezaSeleccionada.nombre_pieza,
+              contador_cambio: contadorActual,
+              vida_util_estimada: piezaSeleccionada.vida_util_estimada || 0,
+              vida_util_real: 0,
+              porcentaje_vida_consumida: 0,
+              motivo: form.motivo || 'Instalación desde stock',
+              observaciones: form.notas || null,
+              tecnico_id: user.id,
+            } as any);
+          }
+        }
       }
     }
 
@@ -330,15 +401,29 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
                 )}
                 {tipo === 'salida' && (
                   <div className="space-y-2">
-                    <Label>Impresora destino</Label>
+                    <Label>
+                      Impresora donde se instaló *
+                      <span className="text-xs text-muted-foreground ml-1 font-normal">
+                        (necesario para actualizar vida útil)
+                      </span>
+                    </Label>
                     <Select value={form.impresora_id} onValueChange={v => setForm({ ...form, impresora_id: v })}>
-                      <SelectTrigger><SelectValue placeholder="Opcional..." /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Seleccionar impresora..." /></SelectTrigger>
                       <SelectContent className="bg-popover max-h-72">
                         {impresoras.map(i => (
                           <SelectItem key={i.id} value={i.id}>{i.nombre} ({i.serie})</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {form.impresora_id ? (
+                      <p className="text-xs text-success mt-1">
+                        ✅ Al confirmar, se actualizará automáticamente la vida útil de la pieza en esa impresora.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Seleccioná la impresora para que el desgaste quede registrado correctamente.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -369,7 +454,7 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
 
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSave} disabled={saving || !form.pieza_catalogo_id}>
+                <Button onClick={handleSave} disabled={saving || !form.pieza_catalogo_id || (tipo === 'salida' && !form.impresora_id)}>
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Registrar'}
                 </Button>
               </div>
