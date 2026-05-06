@@ -27,7 +27,8 @@ import {
   FileText,
   Package,
   Search,
-  Info
+  Info,
+  X
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -174,11 +175,13 @@ export default function Piezas() {
     notas: '',
   });
 
-  const filteredImpresoras = impresoras.filter(imp => {
-    if (!printerSearch.trim()) return true;
-    const q = printerSearch.toLowerCase();
-    return imp.nombre.toLowerCase().includes(q) || imp.serie.toLowerCase().includes(q) || imp.modelo.toLowerCase().includes(q);
-  });
+  const filteredImpresoras = impresoras
+    .filter(imp => {
+      if (!printerSearch.trim()) return true;
+      const q = printerSearch.toLowerCase();
+      return imp.nombre.toLowerCase().includes(q) || imp.serie.toLowerCase().includes(q) || imp.modelo.toLowerCase().includes(q);
+    })
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   // Form state for part change
   const [cambioData, setCambioData] = useState({
@@ -635,22 +638,56 @@ export default function Piezas() {
               <form onSubmit={handleSubmit} className="space-y-4 mt-4">
                 <div className="space-y-2">
                   <Label>Impresora *</Label>
-                  <Input
-                    placeholder="Buscar por nombre, serie o modelo..."
-                    value={printerSearch}
-                    onChange={e => setPrinterSearch(e.target.value)}
-                    className="mb-2"
-                  />
-                  <Select value={formData.impresora_id} onValueChange={handleImpresoraChange}>
+                  <Select
+                    value={formData.impresora_id}
+                    onValueChange={handleImpresoraChange}
+                    onOpenChange={() => setPrinterSearch('')}
+                  >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccionar impresora..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-popover">
-                      {filteredImpresoras.map(imp => (
-                        <SelectItem key={imp.id} value={imp.id}>
-                          {imp.nombre} - {imp.modelo} ({imp.serie})
-                        </SelectItem>
-                      ))}
+                    <SelectContent className="bg-popover p-0">
+                      <div className="px-2 pt-2 pb-1 sticky top-0 bg-popover border-b border-border z-10">
+                        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-input bg-background">
+                          <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                          <input
+                            placeholder="Buscar por nombre, serie, modelo, sector..."
+                            value={printerSearch}
+                            onChange={e => setPrinterSearch(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            onKeyDown={e => e.stopPropagation()}
+                            className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                            autoComplete="off"
+                          />
+                          {printerSearch && (
+                            <button type="button" onClick={() => setPrinterSearch('')}
+                              className="text-muted-foreground hover:text-foreground">
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        {printerSearch && (
+                          <p className="text-xs text-muted-foreground mt-1 px-1">
+                            {filteredImpresoras.length} resultado{filteredImpresoras.length !== 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
+                      <div className="max-h-56 overflow-y-auto py-1">
+                        {filteredImpresoras.length === 0 ? (
+                          <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                            Sin resultados para "{printerSearch}"
+                          </div>
+                        ) : (
+                          filteredImpresoras.map(imp => (
+                            <SelectItem key={imp.id} value={imp.id}>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{imp.nombre} — {imp.modelo}</span>
+                                <span className="text-xs text-muted-foreground">{imp.serie}</span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </div>
                     </SelectContent>
                   </Select>
                 </div>
