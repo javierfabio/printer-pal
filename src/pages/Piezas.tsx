@@ -28,7 +28,9 @@ import {
   Package,
   Search,
   Info,
-  X
+  X,
+  PackageCheck,
+  PackageX
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
