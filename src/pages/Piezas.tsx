@@ -28,7 +28,9 @@ import {
   Package,
   Search,
   Info,
-  X
+  X,
+  PackageCheck,
+  PackageX
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -124,6 +126,69 @@ const TIPO_PIEZA_LABELS: Record<string, string> = {
   rodillo: 'Rodillo',
   otro: 'Otra Pieza',
 };
+
+function StockInfoBadge({
+  tipo,
+  modelo,
+  catalogo,
+}: {
+  tipo: string;
+  modelo?: string;
+  catalogo: any[];
+}) {
+  const piezasCompatibles = catalogo.filter(p =>
+    p.tipo_pieza === tipo &&
+    (p.modelos_vinculados as string[] | null)?.some((m: string) =>
+      m.trim().toLowerCase() === modelo?.toLowerCase()
+    )
+  );
+
+  if (piezasCompatibles.length === 0) {
+    return (
+      <div className="flex items-start gap-2 p-3 rounded-xl border border-warning/30 bg-warning/10">
+        <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-warning">Sin piezas en catálogo</p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            No hay {tipo.toLowerCase()} configurado para {modelo || 'esta impresora'} en el catálogo. Agregalo primero en la pestaña "Catálogo por Modelo".
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const totalStock = piezasCompatibles.reduce((sum, p) => sum + (p.stock_actual || 0), 0);
+
+  if (totalStock === 0) {
+    return (
+      <div className="flex items-start gap-2 p-3 rounded-xl border border-destructive/30 bg-destructive/10">
+        <PackageX className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-destructive">Sin stock disponible</p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            No hay unidades de {tipo.toLowerCase()} en stock. Registrá una entrada en la pestaña "Stock" para poder instalar.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-2 p-3 rounded-xl border border-success/30 bg-success/10">
+      <PackageCheck className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+      <div className="text-sm flex-1">
+        <p className="font-medium text-success">
+          {totalStock} unidad{totalStock !== 1 ? 'es' : ''} disponible{totalStock !== 1 ? 's' : ''} en stock
+        </p>
+        {piezasCompatibles.length > 1 && (
+          <p className="text-muted-foreground text-xs mt-0.5">
+            {piezasCompatibles.map(p => `${p.nombre_pieza} (${p.stock_actual || 0})`).join(', ')}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function Piezas() {
   const { user, role } = useAuth();
@@ -706,6 +771,13 @@ export default function Piezas() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.tipo_pieza && (
+                    <StockInfoBadge
+                      tipo={formData.tipo_pieza}
+                      modelo={impresoras.find(i => i.id === formData.impresora_id)?.modelo}
+                      catalogo={catalogo}
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -752,9 +824,28 @@ export default function Piezas() {
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={saving || !formData.impresora_id || !formData.tipo_pieza}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Instalar Pieza'}
-                  </Button>
+                  {(() => {
+                    const selectedModelo = impresoras.find(i => i.id === formData.impresora_id)?.modelo;
+                    const piezaEnStock = !!formData.tipo_pieza && catalogo.some(p =>
+                      p.tipo_pieza === formData.tipo_pieza &&
+                      (p.modelos_vinculados as string[] | null)?.some((m: string) =>
+                        m.trim().toLowerCase() === selectedModelo?.toLowerCase()
+                      ) &&
+                      (p.stock_actual || 0) > 0
+                    );
+                    return (
+                      <div className="flex flex-col items-end gap-1">
+                        <Button type="submit" disabled={saving || !formData.impresora_id || !formData.tipo_pieza || !piezaEnStock}>
+                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Instalar Pieza'}
+                        </Button>
+                        {formData.tipo_pieza && !piezaEnStock && (
+                          <p className="text-xs text-muted-foreground">
+                            Necesitás registrar una entrada de stock primero
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </form>
             </DialogContent>
