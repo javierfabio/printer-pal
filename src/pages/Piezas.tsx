@@ -708,6 +708,13 @@ export default function Piezas() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.tipo_pieza && (
+                    <StockInfoBadge
+                      tipo={formData.tipo_pieza}
+                      modelo={impresoras.find(i => i.id === formData.impresora_id)?.modelo}
+                      catalogo={catalogo}
+                    />
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -754,9 +761,28 @@ export default function Piezas() {
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button type="submit" disabled={saving || !formData.impresora_id || !formData.tipo_pieza}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Instalar Pieza'}
-                  </Button>
+                  {(() => {
+                    const selectedModelo = impresoras.find(i => i.id === formData.impresora_id)?.modelo;
+                    const piezaEnStock = !!formData.tipo_pieza && catalogo.some(p =>
+                      p.tipo_pieza === formData.tipo_pieza &&
+                      (p.modelos_vinculados as string[] | null)?.some((m: string) =>
+                        m.trim().toLowerCase() === selectedModelo?.toLowerCase()
+                      ) &&
+                      (p.stock_actual || 0) > 0
+                    );
+                    return (
+                      <div className="flex flex-col items-end gap-1">
+                        <Button type="submit" disabled={saving || !formData.impresora_id || !formData.tipo_pieza || !piezaEnStock}>
+                          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Instalar Pieza'}
+                        </Button>
+                        {formData.tipo_pieza && !piezaEnStock && (
+                          <p className="text-xs text-muted-foreground">
+                            Necesitás registrar una entrada de stock primero
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </form>
             </DialogContent>
