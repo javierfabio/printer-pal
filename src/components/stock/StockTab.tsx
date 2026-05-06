@@ -461,12 +461,54 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
                         (necesario para actualizar vida útil)
                       </span>
                     </Label>
-                    <Select value={form.impresora_id} onValueChange={v => setForm({ ...form, impresora_id: v })}>
+                    <Select
+                      value={form.impresora_id}
+                      onValueChange={v => setForm({ ...form, impresora_id: v })}
+                      onOpenChange={() => setImpresoraSearch('')}
+                    >
                       <SelectTrigger><SelectValue placeholder="Seleccionar impresora..." /></SelectTrigger>
-                      <SelectContent className="bg-popover max-h-72">
-                        {impresoras.map(i => (
-                          <SelectItem key={i.id} value={i.id}>{i.nombre} ({i.serie})</SelectItem>
-                        ))}
+                      <SelectContent className="bg-popover p-0">
+                        <div className="px-2 pt-2 pb-1 sticky top-0 bg-popover border-b border-border z-10">
+                          <div className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-input bg-background">
+                            <Search className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                            <input
+                              placeholder="Buscar por nombre o serie..."
+                              value={impresoraSearch}
+                              onChange={e => setImpresoraSearch(e.target.value)}
+                              onClick={e => e.stopPropagation()}
+                              onKeyDown={e => e.stopPropagation()}
+                              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                              autoComplete="off"
+                            />
+                            {impresoraSearch && (
+                              <button type="button" onClick={() => setImpresoraSearch('')}
+                                className="text-muted-foreground hover:text-foreground">
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                          {impresoraSearch && (
+                            <p className="text-xs text-muted-foreground mt-1 px-1">
+                              {impresorasFiltradas.length} resultado{impresorasFiltradas.length !== 1 ? 's' : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="max-h-52 overflow-y-auto py-1">
+                          {impresorasFiltradas.length === 0 ? (
+                            <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                              Sin resultados para "{impresoraSearch}"
+                            </div>
+                          ) : (
+                            impresorasFiltradas.map(i => (
+                              <SelectItem key={i.id} value={i.id}>
+                                <div className="flex flex-col">
+                                  <span className="font-medium">{i.nombre}</span>
+                                  <span className="text-xs text-muted-foreground font-mono">{i.serie}</span>
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </div>
                       </SelectContent>
                     </Select>
                     {form.impresora_id ? (
