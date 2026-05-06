@@ -127,6 +127,69 @@ const TIPO_PIEZA_LABELS: Record<string, string> = {
   otro: 'Otra Pieza',
 };
 
+function StockInfoBadge({
+  tipo,
+  modelo,
+  catalogo,
+}: {
+  tipo: string;
+  modelo?: string;
+  catalogo: any[];
+}) {
+  const piezasCompatibles = catalogo.filter(p =>
+    p.tipo_pieza === tipo &&
+    (p.modelos_vinculados as string[] | null)?.some((m: string) =>
+      m.trim().toLowerCase() === modelo?.toLowerCase()
+    )
+  );
+
+  if (piezasCompatibles.length === 0) {
+    return (
+      <div className="flex items-start gap-2 p-3 rounded-xl border border-warning/30 bg-warning/10">
+        <AlertTriangle className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-warning">Sin piezas en catálogo</p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            No hay {tipo.toLowerCase()} configurado para {modelo || 'esta impresora'} en el catálogo. Agregalo primero en la pestaña "Catálogo por Modelo".
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const totalStock = piezasCompatibles.reduce((sum, p) => sum + (p.stock_actual || 0), 0);
+
+  if (totalStock === 0) {
+    return (
+      <div className="flex items-start gap-2 p-3 rounded-xl border border-destructive/30 bg-destructive/10">
+        <PackageX className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-destructive">Sin stock disponible</p>
+          <p className="text-muted-foreground text-xs mt-0.5">
+            No hay unidades de {tipo.toLowerCase()} en stock. Registrá una entrada en la pestaña "Stock" para poder instalar.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-2 p-3 rounded-xl border border-success/30 bg-success/10">
+      <PackageCheck className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
+      <div className="text-sm flex-1">
+        <p className="font-medium text-success">
+          {totalStock} unidad{totalStock !== 1 ? 'es' : ''} disponible{totalStock !== 1 ? 's' : ''} en stock
+        </p>
+        {piezasCompatibles.length > 1 && (
+          <p className="text-muted-foreground text-xs mt-0.5">
+            {piezasCompatibles.map(p => `${p.nombre_pieza} (${p.stock_actual || 0})`).join(', ')}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Piezas() {
   const { user, role } = useAuth();
   const { toast } = useToast();
