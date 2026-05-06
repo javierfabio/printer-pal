@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, ArrowDownToLine, ArrowUpFromLine, Loader2, PackageSearch } from 'lucide-react';
+import { Plus, ArrowDownToLine, ArrowUpFromLine, Loader2, PackageSearch, Search, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -58,6 +58,8 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [tipo, setTipo] = useState<'entrada' | 'salida'>('entrada');
+  const [piezaSearch, setPiezaSearch] = useState('');
+  const [impresoraSearch, setImpresoraSearch] = useState('');
   const [form, setForm] = useState({
     pieza_catalogo_id: '',
     cantidad: 1,
@@ -69,6 +71,17 @@ export function StockTab({ piezas, impresoras, onChange }: Props) {
     motivo: '',
     notas: '',
   });
+
+  const piezasFiltradas = piezas
+    .filter(p => p.nombre_pieza.toLowerCase().includes(piezaSearch.toLowerCase()))
+    .sort((a, b) => a.nombre_pieza.localeCompare(b.nombre_pieza, 'es'));
+
+  const impresorasFiltradas = impresoras
+    .filter(i =>
+      i.nombre.toLowerCase().includes(impresoraSearch.toLowerCase()) ||
+      i.serie.toLowerCase().includes(impresoraSearch.toLowerCase())
+    )
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   useEffect(() => { fetchMovimientos(); }, []);
 
