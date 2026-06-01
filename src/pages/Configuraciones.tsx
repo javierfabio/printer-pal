@@ -352,11 +352,20 @@ export default function Configuraciones() {
             <CardDescription>Exporta toda la base de datos en un archivo ZIP con CSVs separados por tabla, ideal para migrar a otro entorno o guardar una copia local.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={exportDatabaseBackup} disabled={exportingBackup} className="gap-2">
-              {exportingBackup ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
-              {exportingBackup ? 'Generando backup...' : 'Descargar Backup Completo (ZIP)'}
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">Incluye: impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button onClick={exportDatabaseBackup} disabled={exportingBackup} variant="outline" className="gap-2">
+                {exportingBackup ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
+                {exportingBackup ? 'Generando ZIP...' : 'Backup en ZIP (CSV)'}
+              </Button>
+              <Button onClick={handleBackupSQL} disabled={exportingSql} className="gap-2">
+                {exportingSql ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {exportingSql ? 'Generando SQL...' : 'Backup SQL portable'}
+              </Button>
+            </div>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p><strong>ZIP (CSV):</strong> ideal para abrir en Excel o auditar datos. Incluye impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
+              <p><strong>SQL portable:</strong> archivo .sql para restaurar todo el sistema en otro proyecto Supabase o instalación local. Incluye un mapa de usuarios e instrucciones de migración al final.</p>
+            </div>
           </CardContent>
         </Card>
             </AccordionContent>
