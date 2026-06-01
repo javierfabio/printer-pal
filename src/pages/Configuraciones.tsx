@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code, DatabaseBackup, LayoutDashboard } from 'lucide-react';
+import { Building, Loader2, MapPin, Plus, Shield, ImageIcon, Trash2, Upload, Clock, FileText, Settings, Code, DatabaseBackup, LayoutDashboard, Download } from 'lucide-react';
 import { ConfirmDeleteButton } from '@/components/ui/ConfirmDeleteButton';
 import { getWidgetsConfig, saveWidgetsConfig, WIDGET_DEFAULTS, type WidgetConfig } from '@/lib/dashboardWidgets';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -67,6 +67,7 @@ export default function Configuraciones() {
   const [reportConfig, setReportConfig] = useState<ReportConfig>(getReportConfig());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(getSystemConfig());
   const [exportingBackup, setExportingBackup] = useState(false);
+  const [exportingSql, setExportingSql] = useState(false);
   const [widgetsConfig, setWidgetsConfig] = useState<WidgetConfig[]>(getWidgetsConfig());
 
   const exportDatabaseBackup = async () => {
@@ -125,6 +126,144 @@ export default function Configuraciones() {
       toast({ variant: 'destructive', title: 'Error', description: 'No se pudo generar el backup.' });
     }
     setExportingBackup(false);
+  };
+
+  // Tablas a incluir en el backup SQL portable (en orden de dependencia)
+  const SQL_BACKUP_TABLES = [
+    'filiales',
+    'sectores',
+    'piezas_catalogo',
+    'configuracion_piezas',
+    'precios_modelo',
+    'costos_consumibles',
+    'costos_reparacion',
+    'impresoras',
+    'lecturas_contadores',
+    'piezas_impresora',
+    'historial_piezas',
+    'historial_cambios',
+    'movimientos_stock',
+    'profiles',
+    'user_roles',
+    'user_permissions',
+  ] as const;
+
+  const formatSqlValue = (v: unknown): string => {
+    if (v === null || v === undefined) return 'NULL';
+    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    if (typeof v === 'number') return Number.isFinite(v) ? String(v) : 'NULL';
+    if (Array.isArray(v)) {
+      if (v.length === 0) return "'{}'";
+      const inner = v.map(item => {
+        if (item === null) return 'NULL';
+        if (typeof item === 'number' || typeof item === 'boolean') return String(item);
+        return `"${String(item).replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+      }).join(',');
+      return `'{${inner.replace(/'/g, "''")}}'`;
+    }
+    if (typeof v === 'object') return `'${JSON.stringify(v).replace(/'/g, "''")}'::jsonb`;
+    return `'${String(v).replace(/'/g, "''")}'`;
+  };
+
+  const handleBackupSQL = async () => {
+    if (!isAdmin) return;
+    setExportingSql(true);
+    try {
+      let authUsers: { id: string; email: string | null }[] = [];
+      try {
+        const { data: authResp, error: authErr } = await supabase.functions.invoke('list-auth-users');
+        if (authErr) throw authErr;
+        authUsers = authResp?.users ?? [];
+      } catch (err) {
+        console.warn('No se pudieron listar usuarios de auth:', err);
+      }
+
+      const lines: string[] = [];
+      lines.push(`-- PrintControl — Backup SQL portable`);
+      lines.push(`-- Generado: ${new Date().toISOString()}`);
+      lines.push(`-- Versión: 1.0`);
+      lines.push(``);
+      lines.push(`BEGIN;`);
+      lines.push(``);
+      lines.push(`-- =========================================================`);
+      lines.push(`-- PASO 1: Limpiar tablas existentes (orden inverso de FKs)`);
+      lines.push(`-- =========================================================`);
+      [...SQL_BACKUP_TABLES].reverse().forEach(t => {
+        lines.push(`TRUNCATE TABLE public.${t} RESTART IDENTITY CASCADE;`);
+      });
+      lines.push(``);
+
+      if (authUsers.length > 0) {
+        lines.push(`-- =========================================================`);
+        lines.push(`-- MAPA DE USUARIOS (auth.users) — referencia para migración`);
+        lines.push(`-- Antes de restaurar en otro ambiente, recreá estos usuarios`);
+        lines.push(`-- en Authentication con los mismos emails y reemplazá los`);
+        lines.push(`-- UUIDs en profiles / user_roles / user_permissions abajo.`);
+        lines.push(`-- =========================================================`);
+        authUsers.forEach(u => {
+          lines.push(`-- ${u.id} → ${u.email ?? '(sin email)'}`);
+        });
+        lines.push(``);
+      }
+
+      lines.push(`-- =========================================================`);
+      lines.push(`-- PASO 2: Insertar datos`);
+      lines.push(`-- =========================================================`);
+
+      for (const table of SQL_BACKUP_TABLES) {
+        const { data, error } = await supabase.from(table as any).select('*');
+        if (error) {
+          lines.push(`-- !! Error leyendo ${table}: ${error.message}`);
+          continue;
+        }
+        if (!data || data.length === 0) {
+          lines.push(`\n-- ${table}: sin datos`);
+          continue;
+        }
+        const columns = Object.keys(data[0]);
+        lines.push(`\n-- ${table} (${data.length} filas)`);
+        for (const row of data as any[]) {
+          const values = columns.map(c => formatSqlValue(row[c])).join(', ');
+          lines.push(
+            `INSERT INTO public.${table} (${columns.join(', ')}) VALUES (${values});`
+          );
+        }
+      }
+
+      lines.push(``);
+      lines.push(`COMMIT;`);
+      lines.push(``);
+      lines.push(`-- =========================================================`);
+      lines.push(`-- INSTRUCCIONES DE RESTAURACIÓN`);
+      lines.push(`-- =========================================================`);
+      lines.push(`-- 1. Crear un proyecto Supabase nuevo (o levantar uno local).`);
+      lines.push(`-- 2. Aplicar el schema (correr todas las migraciones del repo).`);
+      lines.push(`-- 3. Crear los usuarios en Authentication con los mismos emails`);
+      lines.push(`--    listados arriba en el "MAPA DE USUARIOS".`);
+      lines.push(`-- 4. Reemplazar los UUIDs viejos por los nuevos en este archivo`);
+      lines.push(`--    (Find & Replace) en profiles, user_roles, user_permissions`);
+      lines.push(`--    y en cualquier columna registrado_por / instalado_por.`);
+      lines.push(`-- 5. Ejecutar este SQL: psql <connection-string> < backup.sql`);
+      lines.push(`-- 6. Verificar la app y los datos.`);
+      lines.push(`-- Ver INSTALACION_LOCAL.md para el detalle completo.`);
+
+      const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `printcontrol_backup_${new Date().toISOString().split('T')[0]}.sql`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: 'Backup SQL generado',
+        description: 'Archivo .sql descargado. Leé las instrucciones al final para restaurar.',
+      });
+    } catch (err: any) {
+      toast({ variant: 'destructive', title: 'Error', description: err?.message || 'No se pudo generar el backup SQL.' });
+    } finally {
+      setExportingSql(false);
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -213,11 +352,20 @@ export default function Configuraciones() {
             <CardDescription>Exporta toda la base de datos en un archivo ZIP con CSVs separados por tabla, ideal para migrar a otro entorno o guardar una copia local.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={exportDatabaseBackup} disabled={exportingBackup} className="gap-2">
-              {exportingBackup ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
-              {exportingBackup ? 'Generando backup...' : 'Descargar Backup Completo (ZIP)'}
-            </Button>
-            <p className="text-xs text-muted-foreground mt-2">Incluye: impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button onClick={exportDatabaseBackup} disabled={exportingBackup} variant="outline" className="gap-2">
+                {exportingBackup ? <Loader2 className="w-4 h-4 animate-spin" /> : <DatabaseBackup className="w-4 h-4" />}
+                {exportingBackup ? 'Generando ZIP...' : 'Backup en ZIP (CSV)'}
+              </Button>
+              <Button onClick={handleBackupSQL} disabled={exportingSql} className="gap-2">
+                {exportingSql ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {exportingSql ? 'Generando SQL...' : 'Backup SQL portable'}
+              </Button>
+            </div>
+            <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <p><strong>ZIP (CSV):</strong> ideal para abrir en Excel o auditar datos. Incluye impresoras, lecturas, piezas, historial, catálogo, costos, filiales y sectores.</p>
+              <p><strong>SQL portable:</strong> archivo .sql para restaurar todo el sistema en otro proyecto Supabase o instalación local. Incluye un mapa de usuarios e instrucciones de migración al final.</p>
+            </div>
           </CardContent>
         </Card>
             </AccordionContent>
